@@ -3,158 +3,204 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analisis Financiero y Benchmark</title>
+  <title>Dashboard bursatil</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <div class="page-shell">
-    <div class="ambient ambient-left"></div>
-    <div class="ambient ambient-right"></div>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Analisis de Algoritmos · Universidad del Quindio</p>
+      <h1>Dashboard bursatil cuantitativo</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="refresh-overview" class="btn secondary" type="button">Actualizar</button>
+      <button id="build-dataset" class="btn secondary" type="button">Reconstruir ETL</button>
+      <a id="download-report" class="btn primary" href="/report.pdf">Reporte PDF</a>
+    </div>
+  </header>
 
-    <header class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">Panel interactivo</p>
-        <h1>Analisis visual del dataset maestro</h1>
-        <p class="hero-text">
-          Explora el CSV consolidado, elige un simbolo y compara tiempos de
-          ejecucion de los algoritmos de ordenamiento desde una sola interfaz.
-        </p>
-      </div>
-      <div class="hero-card">
-        <p class="hero-card-label">Fuente activa</p>
-        <h2 id="hero-dataset-name">Cargando dataset...</h2>
-        <p id="hero-dataset-range" class="hero-card-meta">Preparando resumen</p>
-      </div>
-    </header>
+  <main class="layout">
 
-    <main class="dashboard-grid">
-      <section class="panel controls-panel">
-        <div class="panel-header">
-          <p class="panel-kicker">Configuracion</p>
-          <h2>Motor de analisis</h2>
+    <!-- ── Resumen dataset ── -->
+    <section class="panel span-12">
+      <div class="summary-grid">
+        <div class="metric">
+          <span>Archivo</span>
+          <strong id="dataset-name">-</strong>
         </div>
+        <div class="metric">
+          <span>Rango de fechas</span>
+          <strong id="dataset-range">-</strong>
+        </div>
+        <div class="metric">
+          <span>Filas</span>
+          <strong id="dataset-rows">-</strong>
+        </div>
+        <div class="metric">
+          <span>Activos</span>
+          <strong id="dataset-symbols">-</strong>
+        </div>
+      </div>
+      <p id="status-box" class="status">Cargando dataset...</p>
+    </section>
 
-        <form id="analysis-form" class="control-form">
-          <label class="field">
-            <span>Archivo CSV</span>
-            <input id="dataset-path" name="ruta_archivo" type="text" placeholder="dataset_maestro.csv">
+    <!-- ── ETL stats (solo cuando hay reporte JSON) ── -->
+    <section class="panel span-12" id="etl-stats-section" style="display:none">
+      <details>
+        <summary class="details-header">
+          <p class="eyebrow" style="margin:0">ETL · Limpieza de datos</p>
+          <h2 style="margin:0">Estadisticas de extraccion por activo</h2>
+          <span class="details-caret">▸</span>
+        </summary>
+        <p id="etl-method-note" class="small-note"></p>
+        <div class="table-wrap small">
+          <table id="etl-table">
+            <thead>
+              <tr>
+                <th>Activo</th>
+                <th>Descargados</th>
+                <th>Descartados</th>
+                <th>Imputados (fwd-fill)</th>
+                <th>Limpios</th>
+              </tr>
+            </thead>
+            <tbody id="etl-tbody"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── Controles + complejidad ── -->
+    <section class="panel span-4">
+      <div class="panel-title">
+        <p class="eyebrow">Seleccion</p>
+        <h2>Activos y parametros</h2>
+      </div>
+      <form id="controls" class="form-grid">
+        <label>
+          <span>Activo A</span>
+          <select id="symbol-a"></select>
+        </label>
+        <label>
+          <span>Activo B</span>
+          <select id="symbol-b"></select>
+        </label>
+        <label>
+          <span>Velas</span>
+          <select id="candle-symbol"></select>
+        </label>
+        <div class="two-cols">
+          <label>
+            <span>SMA corta</span>
+            <input id="short-window" type="number" min="2" max="120" value="20">
           </label>
-
-          <div class="field-grid">
-            <label class="field">
-              <span>Simbolo</span>
-              <select id="symbol-select" name="simbolo"></select>
-            </label>
-
-            <label class="field">
-              <span>Top volumen</span>
-              <input id="top-n" name="top_n" type="number" min="1" max="50" value="15">
-            </label>
-          </div>
-
-          <fieldset class="algorithm-picker">
-            <legend>Algoritmos a evaluar</legend>
-            <div id="algorithm-list" class="algorithm-list"></div>
-          </fieldset>
-
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Ejecutar analisis</button>
-            <button type="button" id="refresh-overview" class="btn btn-secondary">Actualizar resumen</button>
-          </div>
-        </form>
-
-        <div id="status-box" class="status-box">
-          Listo para cargar informacion del dataset.
+          <label>
+            <span>SMA larga</span>
+            <input id="long-window" type="number" min="3" max="250" value="50">
+          </label>
         </div>
-      </section>
+        <div class="two-cols">
+          <label>
+            <span>k patron</span>
+            <input id="pattern-k" type="number" min="2" max="10" value="3">
+          </label>
+          <label>
+            <span>Rebote θ</span>
+            <input id="rebound-threshold" type="number" min="0.01" max="0.30" step="0.01" value="0.03">
+          </label>
+        </div>
+        <button class="btn primary full" type="submit">Ejecutar analisis</button>
+      </form>
 
-      <section class="panel metrics-panel">
-        <div class="panel-header">
-          <p class="panel-kicker">Resumen</p>
-          <h2>Radiografia del dataset</h2>
-        </div>
+      <div class="docs">
+        <h3>Complejidad algorítmica</h3>
+        <ul id="algorithm-docs"></ul>
+      </div>
+    </section>
 
-        <div class="stats-grid">
-          <article class="stat-card">
-            <span class="stat-label">Filas</span>
-            <strong id="stat-rows">-</strong>
-          </article>
-          <article class="stat-card">
-            <span class="stat-label">Columnas</span>
-            <strong id="stat-columns">-</strong>
-          </article>
-          <article class="stat-card">
-            <span class="stat-label">Activos</span>
-            <strong id="stat-symbols">-</strong>
-          </article>
-          <article class="stat-card">
-            <span class="stat-label">Rango</span>
-            <strong id="stat-range">-</strong>
-          </article>
-        </div>
+    <!-- ── Similitud + series + retornos ── -->
+    <section class="panel span-8">
+      <div class="panel-title">
+        <p class="eyebrow">Comparacion</p>
+        <h2>Series temporales y medidas de similitud</h2>
+      </div>
+      <div class="metrics-row wide" id="similarity-metrics"></div>
+      <img id="series-plot" class="chart" alt="Grafico de series de precios">
+      <img id="returns-plot" class="chart mt-10" alt="Grafico de retornos diarios">
+    </section>
 
-        <div class="symbol-cloud-wrap">
-          <div class="subheading-row">
-            <h3>Simbolos disponibles</h3>
-          </div>
-          <div id="symbol-cloud" class="symbol-cloud"></div>
-        </div>
-      </section>
+    <!-- ── Velas ── -->
+    <section class="panel span-7">
+      <div class="panel-title">
+        <p class="eyebrow">Tecnico</p>
+        <h2>Velas con medias moviles</h2>
+      </div>
+      <img id="candlestick-plot" class="chart" alt="Grafico de velas">
+    </section>
 
-      <section class="panel benchmark-panel">
-        <div class="panel-header">
-          <p class="panel-kicker">Resultados</p>
-          <h2>Benchmark de algoritmos</h2>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Algoritmo</th>
-                <th>Tiempo</th>
-                <th>Comparacion visual</th>
-              </tr>
-            </thead>
-            <tbody id="benchmark-body">
-              <tr><td colspan="3" class="empty-row">Aun no hay analisis ejecutado.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <!-- ── Patrones ── -->
+    <section class="panel span-5">
+      <div class="panel-title">
+        <p class="eyebrow">Patrones</p>
+        <h2>Ventanas deslizantes</h2>
+      </div>
+      <div id="patterns-box" class="pattern-box"></div>
+      <div id="pattern-formulas" class="pattern-formulas"></div>
+      <div class="panel-title compact">
+        <p class="eyebrow">Activos disponibles</p>
+        <h2>Seleccion rapida</h2>
+      </div>
+      <div id="symbol-cloud" class="symbol-cloud"></div>
+    </section>
 
-      <section class="panel top-panel">
-        <div class="panel-header">
-          <p class="panel-kicker">Volumen</p>
-          <h2>Top dias con mayor actividad</h2>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Fecha</th>
-                <th>Cierre</th>
-                <th>Volumen</th>
-              </tr>
-            </thead>
-            <tbody id="top-volume-body">
-              <tr><td colspan="4" class="empty-row">Selecciona un simbolo y ejecuta el analisis.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <!-- ── Riesgo ── -->
+    <section class="panel span-7">
+      <div class="panel-title">
+        <p class="eyebrow">Riesgo</p>
+        <h2>Volatilidad anualizada y Sharpe</h2>
+      </div>
+      <img id="risk-plot" class="chart" alt="Ranking de riesgo">
+      <div class="table-wrap small">
+        <table>
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th>Volatilidad</th>
+              <th>Ret. anual</th>
+              <th>Sharpe</th>
+              <th>Categoria</th>
+            </tr>
+          </thead>
+          <tbody id="risk-table"></tbody>
+        </table>
+      </div>
+    </section>
 
-      <section class="panel preview-panel">
-        <div class="panel-header">
-          <p class="panel-kicker">Vista previa</p>
-          <h2>Primeras filas del CSV</h2>
-        </div>
-        <div class="table-wrap preview-wrap">
-          <table id="preview-table"></table>
-        </div>
-      </section>
-    </main>
-  </div>
+    <!-- ── Correlacion heatmap + tabla ── -->
+    <section class="panel span-5">
+      <div class="panel-title">
+        <p class="eyebrow">Correlacion</p>
+        <h2>Mapa de calor de Pearson</h2>
+      </div>
+      <img id="correlation-plot" class="chart" alt="Mapa de calor de correlacion">
+      <details class="corr-table-details">
+        <summary>Ver tabla numerica de correlaciones</summary>
+        <div class="table-wrap small" id="correlation-table-wrap"></div>
+      </details>
+    </section>
+
+    <!-- ── Vista previa dataset ── -->
+    <section class="panel span-12">
+      <div class="panel-title">
+        <p class="eyebrow">Dataset maestro</p>
+        <h2>Vista previa</h2>
+      </div>
+      <div class="table-wrap">
+        <table id="preview-table"></table>
+      </div>
+    </section>
+
+  </main>
 
   <script src="/static/app.js"></script>
 </body>

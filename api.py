@@ -1,216 +1,285 @@
+import json
 from pathlib import Path
-from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from flask import Flask, jsonify, request, send_file, send_from_directory
 
-from extraccion_datos import DEFAULT_SYMBOLS, construir_dataset_maestro, guardar_en_csv
-from ordenamiento import (
-    ALGORITMOS,
+from analisis_financiero import (
+    ALGORITHM_DOCS,
+    PATTERN_DOCS,
     cargar_dataset,
-    ejecutar_benchmark,
-    obtener_top_n_volumen_y_ordenar,
+    comparar_activos,
+    contar_patrones,
+    estadisticas_riesgo,
+    extraer_simbolos,
+    matriz_correlacion,
+    retornos_desde_precios,
+    serie_campo,
 )
+from extraccion_datos import DEFAULT_SYMBOLS, construir_dataset_maestro
+from reporte_pdf import generar_reporte_pdf
+from visualizacion import (
+    generar_barras_riesgo,
+    generar_grafico_retornos,
+    generar_grafico_series,
+    generar_grafico_velas,
+    generar_heatmap_correlacion,
+)
+
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-DATASET_CANDIDATES = ("dataset_maerstro.csv", "dataset_maestro.csv")
+DATASET_CANDIDATES = ("dataset_maestro.csv",)
 
-app = FastAPI(
-    title="Analisis de Algoritmos API",
-    description="API para extraccion, benchmark y visualizacion de datasets financieros.",
-    version="2.0.0",
-)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
 
 
-class BuildDatasetRequest(BaseModel):
-    simbolos: List[str] = Field(default_factory=lambda: DEFAULT_SYMBOLS.copy())
-    years: int = 5
-    interval: str = "1d"
-    timeout: int = 10
-    pausa_segundos: float = 2.0
-    guardar_csv: bool = True
-    nombre_archivo: str = "dataset_maestro.csv"
+def _json_error(message, status_code=400):
+    response = jsonify({"detail": message})
+    response.status_code = status_code
+    return response
 
 
-class AnalyzeDatasetRequest(BaseModel):
-    ruta_archivo: Optional[str] = None
-    simbolo: str = "VOO"
-    top_n: int = 15
-    algoritmos: Optional[List[str]] = None
-
-
-class SaveDatasetRequest(BaseModel):
-    ruta_archivo: str = "dataset_maestro.csv"
-    simbolos: List[str] = Field(default_factory=lambda: DEFAULT_SYMBOLS.copy())
-
-
-def resolve_dataset_path(ruta_archivo: Optional[str] = None) -> Path:
+def resolve_dataset_path(ruta_archivo=None):
     if ruta_archivo:
         path = Path(ruta_archivo)
         if not path.is_absolute():
             path = BASE_DIR / ruta_archivo
         if path.exists():
             return path
-
-        nombre = Path(ruta_archivo).name
-        if nombre in DATASET_CANDIDATES:
-            for candidate in DATASET_CANDIDATES:
-                candidate_path = BASE_DIR / candidate
-                if candidate_path.exists():
-                    return candidate_path
-
-        raise HTTPException(
-            status_code=404,
-            detail=f"No se encontro el archivo: {ruta_archivo}",
-        )
+        return None
 
     for candidate in DATASET_CANDIDATES:
-        candidate_path = BASE_DIR / candidate
-        if candidate_path.exists():
-            return candidate_path
-
-    raise HTTPException(
-        status_code=404,
-        detail="No se encontro dataset_maestro.csv ni dataset_maerstro.csv en la carpeta.",
-    )
+        path = BASE_DIR / candidate
+        if path.exists():
+            return path
+    return None
 
 
-def extract_symbols(dataset):
-    if not dataset:
-        return []
-    return sorted(
-        column[:-6]
-        for column in dataset[0].keys()
-        if column.endswith("_Close")
-    )
+def load_dataset_or_error():
+    ruta = request.args.get("ruta_archivo")
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        ruta = payload.get("ruta_archivo", ruta)
+
+    dataset_path = resolve_dataset_path(ruta)
+    if not dataset_path:
+        return None, None, _json_error("No se encontro dataset_maestro.csv. Reconstruya el dataset.", 404)
+    try:
+        dataset = cargar_dataset(dataset_path)
+        return dataset, dataset_path, None
+    except Exception as error:
+        return None, None, _json_error(f"No se pudo cargar el dataset: {error}", 500)
 
 
-def build_dataset_overview(dataset, dataset_path: Path, preview_rows=5):
-    symbols = extract_symbols(dataset)
-    fechas = [row["Fecha"] for row in dataset if row.get("Fecha")]
-
-    return {
+def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
+    simbolos = extraer_simbolos(dataset)
+    fechas = [fila["Fecha"] for fila in dataset if fila.get("Fecha")]
+    payload = {
         "source_file": dataset_path.name,
         "source_path": str(dataset_path),
         "rows": len(dataset),
-        "columns": len(dataset[0].keys()) if dataset else 0,
-        "symbols": symbols,
-        "symbol_count": len(symbols),
+        "columns": len(dataset[0]) if dataset else 0,
+        "symbols": simbolos,
+        "symbol_count": len(simbolos),
         "date_min": min(fechas) if fechas else None,
         "date_max": max(fechas) if fechas else None,
         "preview": dataset[:preview_rows],
     }
+    # Incluir reporte ETL si fue guardado junto al CSV
+    report_path = dataset_path.parent / (dataset_path.stem + "_report.json")
+    if report_path.exists():
+        try:
+            with report_path.open("r", encoding="utf-8") as f:
+                payload["etl_report"] = json.load(f)
+        except Exception:
+            pass
+    return payload
 
 
-@app.get("/", response_class=FileResponse)
+@app.get("/")
 def home():
-    return STATIC_DIR / "index.html"
+    return send_from_directory(STATIC_DIR, "index.html")
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return jsonify({"status": "ok", "framework": "Flask"})
 
 
-@app.get("/algorithms")
-def list_algorithms():
-    return {"algorithms": list(ALGORITMOS.keys())}
+@app.get("/algorithm-docs")
+def algorithm_docs():
+    return jsonify(ALGORITHM_DOCS)
+
+
+@app.get("/pattern-docs")
+def pattern_docs():
+    return jsonify(PATTERN_DOCS)
 
 
 @app.get("/dataset/overview")
-def dataset_overview(ruta_archivo: Optional[str] = Query(default=None)):
-    dataset_path = resolve_dataset_path(ruta_archivo)
-    dataset = cargar_dataset(str(dataset_path))
-    if not dataset:
-        raise HTTPException(status_code=404, detail="No se pudo cargar el dataset.")
-    return build_dataset_overview(dataset, dataset_path)
+def dataset_overview():
+    dataset, dataset_path, error = load_dataset_or_error()
+    if error:
+        return error
+    return jsonify(dataset_overview_payload(dataset, dataset_path))
 
 
 @app.post("/dataset/build")
-def build_dataset(payload: BuildDatasetRequest):
-    dataset = construir_dataset_maestro(
-        simbolos=payload.simbolos,
-        years=payload.years,
-        interval=payload.interval,
-        timeout=payload.timeout,
-        pausa_segundos=payload.pausa_segundos,
-        guardar_csv=payload.guardar_csv,
-        nombre_archivo=payload.nombre_archivo,
-    )
+def build_dataset():
+    payload = request.get_json(silent=True) or {}
+    simbolos = payload.get("simbolos") or DEFAULT_SYMBOLS
+    years = int(payload.get("years", 5))
+    interval = payload.get("interval", "1d")
+    timeout = int(payload.get("timeout", 15))
+    pausa = float(payload.get("pausa_segundos", 0.35))
+    nombre = payload.get("nombre_archivo", "dataset_maestro.csv")
 
-    if not dataset:
-        raise HTTPException(status_code=502, detail="No se pudo construir el dataset.")
-
-    return {
-        "rows": len(dataset),
-        "symbols": payload.simbolos,
-        "saved_to": payload.nombre_archivo if payload.guardar_csv else None,
-        "preview": dataset[:3],
-    }
-
-
-@app.post("/dataset/analyze")
-def analyze_dataset(payload: AnalyzeDatasetRequest):
-    dataset_path = resolve_dataset_path(payload.ruta_archivo)
-    dataset = cargar_dataset(str(dataset_path))
-    if not dataset:
-        raise HTTPException(status_code=404, detail="No se pudo cargar el dataset.")
-
-    available_symbols = extract_symbols(dataset)
-    if payload.simbolo not in available_symbols:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"El simbolo {payload.simbolo} no existe en el dataset. "
-                f"Disponibles: {', '.join(available_symbols)}"
-            ),
-        )
-
-    if payload.algoritmos:
-        desconocidos = [nombre for nombre in payload.algoritmos if nombre not in ALGORITMOS]
-        if desconocidos:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Algoritmos no validos: {', '.join(desconocidos)}",
-            )
-
-    benchmark = ejecutar_benchmark(
-        dataset,
-        simbolo=payload.simbolo,
-        algoritmos=payload.algoritmos,
-    )
-    top_n, tiempo_top_n = obtener_top_n_volumen_y_ordenar(
-        dataset,
-        simbolo=payload.simbolo,
-        limite=payload.top_n,
-    )
-
-    return {
-        "source_file": dataset_path.name,
-        "rows": len(dataset),
-        "symbol": payload.simbolo,
-        "benchmark": benchmark,
-        "top_n_time_ms": round(tiempo_top_n, 4),
-        "top_n": top_n,
-    }
-
-
-@app.post("/dataset/rebuild-and-save")
-def rebuild_and_save(payload: SaveDatasetRequest):
-    dataset = construir_dataset_maestro(
-        simbolos=payload.simbolos,
-        guardar_csv=False,
+    dataset, reporte = construir_dataset_maestro(
+        simbolos=simbolos,
+        years=years,
+        interval=interval,
+        timeout=timeout,
+        pausa_segundos=pausa,
+        guardar_csv=True,
+        nombre_archivo=nombre,
     )
     if not dataset:
-        raise HTTPException(status_code=502, detail="No se pudo reconstruir el dataset.")
+        return _json_error("No se pudo construir el dataset.", 502)
+    return jsonify({"rows": len(dataset), "report": reporte, "preview": dataset[:3]})
 
-    guardar_en_csv(dataset, nombre_archivo=payload.ruta_archivo)
-    return {
-        "rows": len(dataset),
-        "saved_to": payload.ruta_archivo,
-        "symbols": payload.simbolos,
-    }
+
+@app.post("/similarity")
+def similarity():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    payload = request.get_json(silent=True) or {}
+    simbolo_a = payload.get("symbol_a")
+    simbolo_b = payload.get("symbol_b")
+    simbolos = extraer_simbolos(dataset)
+    if simbolo_a not in simbolos or simbolo_b not in simbolos:
+        return _json_error(f"Seleccione dos activos validos. Disponibles: {', '.join(simbolos)}")
+    comparacion = comparar_activos(dataset, simbolo_a, simbolo_b)
+    # Keep API responses light; full images are served by plotting endpoints.
+    comparacion["prices"]["dates"] = comparacion["prices"]["dates"][-250:]
+    comparacion["prices"][simbolo_a] = comparacion["prices"][simbolo_a][-250:]
+    comparacion["prices"][simbolo_b] = comparacion["prices"][simbolo_b][-250:]
+    comparacion["returns"]["dates"] = comparacion["returns"]["dates"][-250:]
+    comparacion["returns"][simbolo_a] = comparacion["returns"][simbolo_a][-250:]
+    comparacion["returns"][simbolo_b] = comparacion["returns"][simbolo_b][-250:]
+    return jsonify(comparacion)
+
+
+@app.get("/risk")
+def risk():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    return jsonify({"items": estadisticas_riesgo(dataset)})
+
+
+@app.get("/patterns")
+def patterns():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    simbolo = request.args.get("symbol")
+    k = int(request.args.get("k", 3))
+    threshold = float(request.args.get("threshold", 0.03))
+    simbolos = extraer_simbolos(dataset)
+    if simbolo not in simbolos:
+        return _json_error(f"Simbolo invalido. Disponibles: {', '.join(simbolos)}")
+    precios = [item["valor"] for item in serie_campo(dataset, simbolo, "Close")]
+    retornos = retornos_desde_precios(precios)
+    return jsonify({"symbol": simbolo, "patterns": contar_patrones(retornos, k=k, umbral_rebote=threshold)})
+
+
+@app.get("/correlation")
+def correlation():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    return jsonify(matriz_correlacion(dataset))
+
+
+@app.get("/plot/correlation.png")
+def plot_correlation():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    return send_file(
+        __import__("io").BytesIO(generar_heatmap_correlacion(dataset)),
+        mimetype="image/png",
+        download_name="correlacion.png",
+    )
+
+
+@app.get("/plot/candlestick.png")
+def plot_candlestick():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    simbolo = request.args.get("symbol")
+    short_window = int(request.args.get("short_window", 20))
+    long_window = int(request.args.get("long_window", 50))
+    if simbolo not in extraer_simbolos(dataset):
+        return _json_error("Simbolo invalido.")
+    try:
+        png = generar_grafico_velas(dataset, simbolo, short_window, long_window)
+    except Exception as error:
+        return _json_error(str(error), 500)
+    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name=f"velas_{simbolo}.png")
+
+
+@app.get("/plot/returns.png")
+def plot_returns():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    simbolo_a = request.args.get("symbol_a")
+    simbolo_b = request.args.get("symbol_b")
+    simbolos = extraer_simbolos(dataset)
+    if simbolo_a not in simbolos or simbolo_b not in simbolos:
+        return _json_error("Simbolos invalidos.")
+    png = generar_grafico_retornos(comparar_activos(dataset, simbolo_a, simbolo_b))
+    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name="retornos.png")
+
+
+@app.get("/plot/series.png")
+def plot_series():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    simbolo_a = request.args.get("symbol_a")
+    simbolo_b = request.args.get("symbol_b")
+    if simbolo_a not in extraer_simbolos(dataset) or simbolo_b not in extraer_simbolos(dataset):
+        return _json_error("Simbolos invalidos.")
+    png = generar_grafico_series(comparar_activos(dataset, simbolo_a, simbolo_b))
+    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name="series.png")
+
+
+@app.get("/plot/risk.png")
+def plot_risk():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    png = generar_barras_riesgo(estadisticas_riesgo(dataset))
+    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name="riesgo.png")
+
+
+@app.get("/report.pdf")
+def report_pdf():
+    dataset, _, error = load_dataset_or_error()
+    if error:
+        return error
+    simbolos = extraer_simbolos(dataset)
+    symbol_a = request.args.get("symbol_a") or (simbolos[0] if simbolos else None)
+    symbol_b = request.args.get("symbol_b") or (simbolos[1] if len(simbolos) > 1 else symbol_a)
+    if symbol_a not in simbolos or symbol_b not in simbolos:
+        return _json_error("Simbolos invalidos para reporte.")
+    ruta = generar_reporte_pdf(dataset, symbol_a, symbol_b)
+    return send_file(ruta, mimetype="application/pdf", as_attachment=True, download_name=ruta.name)
+
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=8000, debug=True)
