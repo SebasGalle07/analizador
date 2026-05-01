@@ -7,24 +7,26 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body data-page="visualization">
-  <header class="topbar">
-    <div>
-      <p class="eyebrow">Requerimiento 4</p>
-      <h1>Visualizacion bursatil y reporte PDF</h1>
-    </div>
-    <div class="topbar-actions">
-      <button id="refresh-overview" class="btn secondary" type="button">Actualizar</button>
-      <a id="download-report" class="btn primary" href="/report.pdf">Reporte PDF</a>
-    </div>
-  </header>
+  <section class="page-chrome">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Requerimiento 4</p>
+        <h1>Visualizacion bursatil y reporte PDF</h1>
+      </div>
+      <div class="topbar-actions">
+        <button id="refresh-overview" class="btn secondary" type="button">Actualizar</button>
+        <a id="download-report" class="btn primary" href="/report.pdf">Reporte PDF</a>
+      </div>
+    </header>
 
-  <nav class="module-nav" aria-label="Navegacion por requerimientos">
-    <a class="module-btn" href="/ui/etl">1. ETL</a>
-    <a class="module-btn" href="/ui/similarity">2. Similitud</a>
-    <a class="module-btn" href="/ui/patterns">3. Patrones y riesgo</a>
-    <a class="module-btn active" href="/ui/visualization">4. Visualizacion y PDF</a>
-    <a class="module-btn" href="/ui/docs">5. Documentacion y despliegue</a>
-  </nav>
+    <nav class="module-nav" aria-label="Navegacion por requerimientos">
+      <a class="module-btn" href="/ui/etl">ETL</a>
+      <a class="module-btn" href="/ui/similarity">Similitud</a>
+      <a class="module-btn" href="/ui/patterns">Patrones y riesgo</a>
+      <a class="module-btn active" href="/ui/visualization">Visualizacion y PDF</a>
+      <a class="module-btn" href="/ui/docs">Documentacion y despliegue</a>
+    </nav>
+  </section>
 
   <main class="layout">
     <section class="panel span-12">

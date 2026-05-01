@@ -24,6 +24,10 @@ BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
 
 
+def _parse_date_axis(fechas):
+    return [mdates.datestr2num(fecha) for fecha in fechas]
+
+
 def _pagina_texto(pdf, titulo, lineas):
     fig = plt.figure(figsize=(8.27, 11.69))
     fig.text(0.08, 0.94, titulo, fontsize=18, weight="bold")
@@ -109,16 +113,16 @@ def generar_reporte_pdf(dataset, simbolo_a, simbolo_b, ruta_salida=None):
 
         fig, ax = plt.subplots(figsize=(11, 6))
         fechas = comparacion["prices"]["dates"][-500:]
-        ax.plot(fechas, comparacion["prices"][simbolo_a][-500:], label=simbolo_a)
-        ax.plot(fechas, comparacion["prices"][simbolo_b][-500:], label=simbolo_b)
+        x = _parse_date_axis(fechas)
+        ax.plot(x, comparacion["prices"][simbolo_a][-500:], label=simbolo_a)
+        ax.plot(x, comparacion["prices"][simbolo_b][-500:], label=simbolo_b)
         ax.set_title("Precios de cierre")
         ax.grid(True, alpha=0.25)
         ax.legend()
-        if len(fechas) > 20:
-            step = max(1, len(fechas) // 10)
-            ticks = list(range(0, len(fechas), step))
-            ax.set_xticks(ticks)
-            ax.set_xticklabels([fechas[i] for i in ticks], rotation=45, ha="right")
+        ax.xaxis_date()
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+        ax.tick_params(axis="x", rotation=45, labelsize=7)
+        fig.autofmt_xdate()
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 

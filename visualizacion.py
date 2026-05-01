@@ -22,6 +22,10 @@ def _fig_to_png_bytes(fig):
     return buffer.getvalue()
 
 
+def _parse_date_axis(fechas):
+    return [mdates.datestr2num(fecha) for fecha in fechas]
+
+
 def generar_heatmap_correlacion(dataset):
     data = matriz_correlacion(dataset)
     simbolos = data["symbols"]
@@ -87,19 +91,18 @@ def generar_grafico_series(comparacion, max_points=500):
         valores_a = valores_a[-max_points:]
         valores_b = valores_b[-max_points:]
 
+    x = _parse_date_axis(fechas)
     fig, ax = plt.subplots(figsize=(12, 5.2))
-    ax.plot(fechas, valores_a, label=simbolo_a, linewidth=1.3)
-    ax.plot(fechas, valores_b, label=simbolo_b, linewidth=1.3)
+    ax.plot(x, valores_a, label=simbolo_a, linewidth=1.3)
+    ax.plot(x, valores_b, label=simbolo_b, linewidth=1.3)
     ax.set_title("Comparacion de precios de cierre")
     ax.set_ylabel("Precio")
     ax.grid(True, alpha=0.22)
     ax.legend(loc="upper left")
+    ax.xaxis_date()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     ax.tick_params(axis="x", rotation=60, labelsize=7)
-    if len(fechas) > 24:
-        step = max(1, len(fechas) // 12)
-        ticks = list(range(0, len(fechas), step))
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([fechas[i] for i in ticks], rotation=60, ha="right")
+    fig.autofmt_xdate()
     return _fig_to_png_bytes(fig)
 
 
@@ -114,20 +117,19 @@ def generar_grafico_retornos(comparacion, max_points=500):
         ret_a = ret_a[-max_points:]
         ret_b = ret_b[-max_points:]
 
+    x = _parse_date_axis(fechas)
     fig, ax = plt.subplots(figsize=(12, 4.2))
-    ax.plot(fechas, [r * 100 for r in ret_a], label=simbolo_a, linewidth=0.9, alpha=0.85)
-    ax.plot(fechas, [r * 100 for r in ret_b], label=simbolo_b, linewidth=0.9, alpha=0.85)
+    ax.plot(x, [r * 100 for r in ret_a], label=simbolo_a, linewidth=0.9, alpha=0.85)
+    ax.plot(x, [r * 100 for r in ret_b], label=simbolo_b, linewidth=0.9, alpha=0.85)
     ax.axhline(0, color="black", linewidth=0.6, linestyle="--", alpha=0.5)
     ax.set_title("Retornos diarios (%)")
     ax.set_ylabel("Retorno (%)")
     ax.grid(True, alpha=0.22)
     ax.legend(loc="upper left")
+    ax.xaxis_date()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     ax.tick_params(axis="x", rotation=60, labelsize=7)
-    if len(fechas) > 24:
-        step = max(1, len(fechas) // 12)
-        ticks = list(range(0, len(fechas), step))
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([fechas[i] for i in ticks], rotation=60, ha="right")
+    fig.autofmt_xdate()
     return _fig_to_png_bytes(fig)
 
 

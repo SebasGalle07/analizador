@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,6 +9,7 @@ import requests
 
 
 BASE_DIR = Path(__file__).resolve().parent
+LOGGER = logging.getLogger(__name__)
 
 # Yahoo Finance symbols queried through explicit HTTP requests. The first block
 # contains Colombian/BVC names available in Yahoo and the second block contains
@@ -264,6 +266,57 @@ def guardar_reporte_json(reporte, nombre_base="dataset_maestro"):
     return ruta
 
 
+def validar_requerimientos_etl(reporte, dataset, min_activos=20, min_years=5, strict=False):
+    advertencias = []
+    errores = []
+
+    activos_descargados = len(reporte.get("simbolos_descargados", []))
+    if activos_descargados < min_activos:
+        mensaje = (
+            f"Solo se descargaron {activos_descargados} activos; "
+            f"el requerimiento pide al menos {min_activos}."
+        )
+        if strict:
+            errores.append(mensaje)
+        else:
+            advertencias.append(mensaje)
+
+    fecha_min = None
+    fecha_max = None
+    if dataset:
+        fechas = [fila.get("Fecha") for fila in dataset if fila.get("Fecha")]
+        if fechas:
+            fecha_min = min(fechas)
+            fecha_max = max(fechas)
+            try:
+                inicio = datetime.strptime(fecha_min, "%Y-%m-%d")
+                fin = datetime.strptime(fecha_max, "%Y-%m-%d")
+                if (fin - inicio).days < (min_years * 365):
+                    mensaje = (
+                        f"El rango final cubre {fecha_min} a {fecha_max}, "
+                        f"menos de {min_years} anos calendario completos."
+                    )
+                    if strict:
+                        errores.append(mensaje)
+                    else:
+                        advertencias.append(mensaje)
+            except ValueError:
+                advertencias.append("No se pudo validar el rango final de fechas.")
+
+    reporte["validacion"] = {
+        "min_activos": min_activos,
+        "min_years": min_years,
+        "activos_descargados": activos_descargados,
+        "rango_final": {"inicio": fecha_min, "fin": fecha_max},
+        "cumple": not errores,
+    }
+    if advertencias:
+        reporte.setdefault("advertencias", []).extend(advertencias)
+    if errores:
+        reporte.setdefault("errores_validacion", []).extend(errores)
+    return advertencias, errores
+
+
 def guardar_en_csv(dataset, nombre_archivo="dataset_maestro.csv"):
     if not dataset:
         return None
@@ -288,33 +341,74 @@ def construir_dataset_maestro(
     pausa_segundos=0.35,
     guardar_csv=True,
     nombre_archivo="dataset_maestro.csv",
+    min_activos=20,
+    min_years=5,
+    strict_minimo=False,
 ):
     simbolos = [normalizar_simbolo(s) for s in (simbolos or DEFAULT_SYMBOLS)]
     datos_memoria = {}
-    reporte = {"activos": {}, "errores": {}, "limpieza": {}}
+    reporte = {
+        "fuente": "Yahoo Finance (HTTP directo)",
+        "years_solicitados": years,
+        "intervalo": interval,
+        "activos_solicitados": len(simbolos),
+        "activos": {},
+        "errores": {},
+        "limpieza": {},
+        "advertencias": [],
+    }
 
-    for simbolo in simbolos:
+    LOGGER.info("ETL | inicio | solicitados=%s | anos=%s | intervalo=%s", len(simbolos), years, interval)
+
+    total_simbolos = len(simbolos)
+    for index, simbolo in enumerate(simbolos, start=1):
         try:
+            LOGGER.info("ETL | activo %s/%s | %s | descarga", index, total_simbolos, simbolo)
             datos = descargar_yahoo_finance(simbolo, years=years, interval=interval, timeout=timeout)
             limpios, resumen = limpiar_registros(datos)
             if limpios:
                 datos_memoria[simbolo] = limpios
                 reporte["activos"][simbolo] = resumen
+                LOGGER.info(
+                    "ETL | activo %s/%s | %s | crudos=%s | limpios=%s | descartados=%s",
+                    index,
+                    total_simbolos,
+                    simbolo,
+                    resumen["crudos"],
+                    resumen["limpios"],
+                    resumen["descartados"],
+                )
             else:
                 reporte["errores"][simbolo] = "Sin registros validos despues de limpieza"
+                LOGGER.warning("ETL | activo %s/%s | %s | sin registros validos", index, total_simbolos, simbolo)
         except Exception as error:
             reporte["errores"][simbolo] = str(error)
+            LOGGER.warning("ETL | activo %s/%s | %s | error=%s", index, total_simbolos, simbolo, error)
 
         if pausa_segundos > 0:
             time.sleep(pausa_segundos)
 
     if not datos_memoria:
+        LOGGER.error("ETL | error | no se obtuvieron activos validos")
         return [], reporte
 
     dataset, limpieza = unificar_portafolio(datos_memoria)
     reporte["limpieza"] = limpieza
     reporte["simbolos_descargados"] = list(datos_memoria.keys())
     reporte["filas"] = len(dataset)
+    reporte["activos_descargados"] = len(reporte["simbolos_descargados"])
+    if dataset:
+        fechas = [fila["Fecha"] for fila in dataset if fila.get("Fecha")]
+        if fechas:
+            reporte["rango_final"] = {"inicio": min(fechas), "fin": max(fechas)}
+
+    advertencias, errores_validacion = validar_requerimientos_etl(
+        reporte,
+        dataset,
+        min_activos=min_activos,
+        min_years=min_years,
+        strict=strict_minimo,
+    )
 
     if guardar_csv:
         ruta = guardar_en_csv(dataset, nombre_archivo=nombre_archivo)
@@ -322,14 +416,29 @@ def construir_dataset_maestro(
         nombre_base = Path(nombre_archivo).stem
         guardar_reporte_json(reporte, nombre_base)
 
+    if errores_validacion:
+        LOGGER.error("ETL | validacion | no cumple minimo | %s", " ; ".join(errores_validacion))
+        if strict_minimo:
+            raise RuntimeError("; ".join(errores_validacion))
+    elif advertencias:
+        LOGGER.warning("ETL | validacion | advertencias | %s", " ; ".join(advertencias))
+
+    LOGGER.info(
+        "ETL | fin | descargados=%s | filas=%s | rango=%s..%s",
+        reporte.get("activos_descargados", 0),
+        reporte.get("filas", 0),
+        (reporte.get("rango_final") or {}).get("inicio"),
+        (reporte.get("rango_final") or {}).get("fin"),
+    )
+
     return dataset, reporte
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+    )
     dataset, reporte = construir_dataset_maestro()
-    print(f"Filas generadas: {len(dataset)}")
-    print(f"Activos descargados: {len(reporte.get('simbolos_descargados', []))}")
-    if reporte.get("errores"):
-        print("Errores:")
-        for simbolo, error in reporte["errores"].items():
-            print(f"  {simbolo}: {error}")
+    resumen = reporte.get("validacion", {})
+    LOGGER.info("ETL | resumen | filas=%s | activos=%s | rango=%s..%s", len(dataset), reporte.get("activos_descargados", 0), (resumen.get("rango_final") or {}).get("inicio"), (resumen.get("rango_final") or {}).get("fin"))
