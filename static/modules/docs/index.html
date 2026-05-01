@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentacion y despliegue | Dashboard bursatil</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body data-page="docs">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Requerimiento 5</p>
+      <h1>Documentacion tecnica y despliegue</h1>
+    </div>
+    <div class="topbar-actions">
+    </div>
+  </header>
+
+  <nav class="module-nav" aria-label="Navegacion por requerimientos">
+    <a class="module-btn" href="/ui/etl">1. ETL</a>
+    <a class="module-btn" href="/ui/similarity">2. Similitud</a>
+    <a class="module-btn" href="/ui/patterns">3. Patrones y riesgo</a>
+    <a class="module-btn" href="/ui/visualization">4. Visualizacion y PDF</a>
+    <a class="module-btn active" href="/ui/docs">5. Documentacion y despliegue</a>
+  </nav>
+
+  <main class="layout">
+    <section class="panel span-12">
+      <div class="panel-title">
+        <p class="eyebrow">Arquitectura</p>
+        <h2>Mapa general del sistema</h2>
+      </div>
+      <div class="docs docs-grid">
+        <div class="doc-card">
+          <h3>Flujo principal</h3>
+          <ul>
+            <li>Descarga de datos por HTTP directo.</li>
+            <li>Limpieza y unificacion del dataset maestro.</li>
+            <li>Calculo de similitud, riesgo y patrones.</li>
+            <li>Render de graficas y exportacion de PDF.</li>
+            <li>Consumo desde una API Flask y paginas web separadas.</li>
+          </ul>
+        </div>
+        <div class="doc-card">
+          <h3>Arranque local</h3>
+          <ul>
+            <li><strong>.\\.venv\\Scripts\\python.exe api.py</strong></li>
+            <li>Abre la interfaz en <strong>http://127.0.0.1:8000/</strong></li>
+            <li>Reconstruye el ETL solo si necesitas refrescar la fuente.</li>
+            <li>El reporte PDF se genera desde el boton correspondiente.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel span-6">
+      <div class="panel-title">
+        <p class="eyebrow">Algoritmos</p>
+        <h2>Complejidad y formulas</h2>
+      </div>
+      <ul id="algorithm-docs" class="docs-list"></ul>
+    </section>
+
+    <section class="panel span-6">
+      <div class="panel-title">
+        <p class="eyebrow">Patrones</p>
+        <h2>Formalizacion matematica</h2>
+      </div>
+      <div id="pattern-formulas" class="pattern-formulas"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

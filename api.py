@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file, send_from_directory
+from flask import Flask, jsonify, redirect, request, send_file, send_from_directory
 
 from analisis_financiero import (
     ALGORITHM_DOCS,
@@ -98,7 +98,32 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
 
 @app.get("/")
 def home():
-    return send_from_directory(STATIC_DIR, "index.html")
+    return redirect("/ui/etl", code=302)
+
+
+@app.get("/ui/etl")
+def page_etl():
+    return send_from_directory(STATIC_DIR / "modules" / "etl", "index.html")
+
+
+@app.get("/ui/similarity")
+def page_similarity():
+    return send_from_directory(STATIC_DIR / "modules" / "similarity", "index.html")
+
+
+@app.get("/ui/patterns")
+def page_patterns():
+    return send_from_directory(STATIC_DIR / "modules" / "patterns", "index.html")
+
+
+@app.get("/ui/visualization")
+def page_visualization():
+    return send_from_directory(STATIC_DIR / "modules" / "visualization", "index.html")
+
+
+@app.get("/ui/docs")
+def page_docs():
+    return send_from_directory(STATIC_DIR / "modules" / "docs", "index.html")
 
 
 @app.get("/health")

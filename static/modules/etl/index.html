@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ETL | Dashboard bursatil</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body data-page="etl">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Requerimiento 1</p>
+      <h1>ETL y construccion del dataset</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="refresh-overview" class="btn secondary" type="button">Actualizar</button>
+      <button id="build-dataset" class="btn secondary" type="button">Reconstruir ETL</button>
+    </div>
+  </header>
+
+  <nav class="module-nav" aria-label="Navegacion por requerimientos">
+    <a class="module-btn active" href="/ui/etl">1. ETL</a>
+    <a class="module-btn" href="/ui/similarity">2. Similitud</a>
+    <a class="module-btn" href="/ui/patterns">3. Patrones y riesgo</a>
+    <a class="module-btn" href="/ui/visualization">4. Visualizacion y PDF</a>
+    <a class="module-btn" href="/ui/docs">5. Documentacion y despliegue</a>
+  </nav>
+
+  <main class="layout">
+    <section class="panel span-12">
+      <div class="summary-grid">
+        <div class="metric">
+          <span>Archivo</span>
+          <strong id="dataset-name">-</strong>
+        </div>
+        <div class="metric">
+          <span>Rango de fechas</span>
+          <strong id="dataset-range">-</strong>
+        </div>
+        <div class="metric">
+          <span>Filas</span>
+          <strong id="dataset-rows">-</strong>
+        </div>
+        <div class="metric">
+          <span>Activos</span>
+          <strong id="dataset-symbols">-</strong>
+        </div>
+      </div>
+      <p id="status-box" class="status">Cargando dataset...</p>
+    </section>
+
+    <section class="panel span-12" id="etl-stats-section" style="display:none">
+      <details open>
+        <summary class="details-header">
+          <p class="eyebrow" style="margin:0">ETL · Limpieza de datos</p>
+          <h2 style="margin:0">Estadisticas de extraccion por activo</h2>
+          <span class="details-caret">▸</span>
+        </summary>
+        <p id="etl-method-note" class="small-note"></p>
+        <div class="table-wrap small">
+          <table id="etl-table">
+            <thead>
+              <tr>
+                <th>Activo</th>
+                <th>Descargados</th>
+                <th>Descartados</th>
+                <th>Imputados (fwd-fill)</th>
+                <th>Limpios</th>
+              </tr>
+            </thead>
+            <tbody id="etl-tbody"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel span-12">
+      <div class="panel-title">
+        <p class="eyebrow">Dataset maestro</p>
+        <h2>Vista previa</h2>
+      </div>
+      <div class="table-wrap">
+        <table id="preview-table"></table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

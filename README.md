@@ -7,19 +7,29 @@ similitud; los algoritmos principales estan implementados con listas y bucles.
 
 ## Modulos
 
+- `modules/etl/`: documentos de soporte del ETL.
+- `modules/similarity/`: documentos de soporte de similitud.
+- `modules/patterns/`: documentos de soporte de patrones y riesgo.
+- `modules/visualization/`: documentos de soporte de visualizacion y PDF.
+- `modules/docs/`: documentos de arquitectura, despliegue y sustentacion.
+- `static/modules/etl/`: pagina web del modulo ETL.
+- `static/modules/similarity/`: pagina web del modulo de similitud.
+- `static/modules/patterns/`: pagina web del modulo de patrones y riesgo.
+- `static/modules/visualization/`: pagina web del modulo de visualizacion y PDF.
+- `static/modules/docs/`: pagina web del modulo de documentacion.
 - `extraccion_datos.py`: ETL reproducible desde Yahoo Finance mediante HTTP.
 - `analisis_financiero.py`: retornos, Euclidiana, Pearson, DTW, coseno,
   ventanas deslizantes, volatilidad y matriz de correlacion.
 - `visualizacion.py`: heatmap, velas, medias moviles y ranking de riesgo.
 - `reporte_pdf.py`: reporte tecnico descargable.
 - `api.py`: aplicacion Flask y endpoints para la interfaz.
-- `static/`: dashboard HTML, CSS y JavaScript.
+- `static/`: landing page, CSS, JavaScript y paginas modulares.
 - `DOCUMENTACION_TECNICA.md`: arquitectura, formulas y complejidades.
 
 ## Ejecucion
 
 ```powershell
-cd "C:\Users\sebas\Desktop\Universidad\analisis\analizador"
+cd "d:\Repositorios_UQ\proyecto-algoritmos\analizador"
 py -3 -m pip install -r requirements.txt
 py -3 api.py
 ```
@@ -50,6 +60,15 @@ El archivo generado es `dataset_maestro.csv`. Cada activo tiene columnas:
 <SIMBOLO>_Volume
 <SIMBOLO>_Missing
 ```
+
+## Rutas web
+
+- `/`: redirige al modulo ETL.
+- `/ui/etl`: ETL y dataset.
+- `/ui/similarity`: similitud entre activos.
+- `/ui/patterns`: patrones y riesgo.
+- `/ui/visualization`: visualizacion y PDF.
+- `/ui/docs`: documentacion y despliegue.
 
 ## Endpoints principales
 

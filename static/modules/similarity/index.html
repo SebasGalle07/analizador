@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Similitud | Dashboard bursatil</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body data-page="similarity">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Requerimiento 2</p>
+      <h1>Similitud entre series de tiempo</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="refresh-overview" class="btn secondary" type="button">Actualizar</button>
+      <a id="download-report" class="btn primary" href="/report.pdf">Reporte PDF</a>
+    </div>
+  </header>
+
+  <nav class="module-nav" aria-label="Navegacion por requerimientos">
+    <a class="module-btn" href="/ui/etl">1. ETL</a>
+    <a class="module-btn active" href="/ui/similarity">2. Similitud</a>
+    <a class="module-btn" href="/ui/patterns">3. Patrones y riesgo</a>
+    <a class="module-btn" href="/ui/visualization">4. Visualizacion y PDF</a>
+    <a class="module-btn" href="/ui/docs">5. Documentacion y despliegue</a>
+  </nav>
+
+  <main class="layout">
+    <section class="panel span-12">
+      <div class="summary-grid">
+        <div class="metric">
+          <span>Archivo</span>
+          <strong id="dataset-name">-</strong>
+        </div>
+        <div class="metric">
+          <span>Rango de fechas</span>
+          <strong id="dataset-range">-</strong>
+        </div>
+        <div class="metric">
+          <span>Filas</span>
+          <strong id="dataset-rows">-</strong>
+        </div>
+        <div class="metric">
+          <span>Activos</span>
+          <strong id="dataset-symbols">-</strong>
+        </div>
+      </div>
+      <p id="status-box" class="status">Cargando datos...</p>
+    </section>
+
+    <section class="panel span-4">
+      <div class="panel-title">
+        <p class="eyebrow">Seleccion</p>
+        <h2>Activos y parametros</h2>
+      </div>
+      <form id="controls" class="form-grid">
+        <label>
+          <span>Activo A</span>
+          <select id="symbol-a"></select>
+        </label>
+        <label>
+          <span>Activo B</span>
+          <select id="symbol-b"></select>
+        </label>
+        <button class="btn primary full" type="submit">Ejecutar analisis</button>
+      </form>
+      <div class="docs">
+        <h3>Complejidad algoritimica</h3>
+        <ul id="algorithm-docs"></ul>
+      </div>
+    </section>
+
+    <section class="panel span-8">
+      <div class="panel-title">
+        <p class="eyebrow">Comparacion</p>
+        <h2>Series temporales y medidas de similitud</h2>
+      </div>
+      <div class="metrics-row wide" id="similarity-metrics"></div>
+      <img id="series-plot" class="chart" alt="Grafico de series de precios">
+      <img id="returns-plot" class="chart mt-10" alt="Grafico de retornos diarios">
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,13 +1,18 @@
+const PAGE = document.body.dataset.page || "dashboard";
+
 const state = {
   overview: null,
   docs: null,
   patternDocs: null,
+  activeModule: "etl",
 };
 
 const $ = (sel) => document.querySelector(sel);
+const has = (sel) => $(sel) !== null;
 
 function setStatus(msg, type = "info") {
   const box = $("#status-box");
+  if (!box) return;
   box.textContent = msg;
   box.dataset.type = type;
 }
@@ -37,6 +42,7 @@ async function fetchJson(url, options) {
 
 function fillSelect(selector, symbols, preferred) {
   const select = $(selector);
+  if (!select) return;
   select.innerHTML = "";
   symbols.forEach((s) => {
     const opt = document.createElement("option");
@@ -47,33 +53,54 @@ function fillSelect(selector, symbols, preferred) {
   if (preferred && symbols.includes(preferred)) select.value = preferred;
 }
 
+function activateModule(moduleName, { scroll = true } = {}) {
+  state.activeModule = moduleName;
+
+  document.querySelectorAll(".module-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.module === moduleName);
+  });
+
+  document.querySelectorAll(".module-panel").forEach((panel) => {
+    panel.classList.toggle("module-panel-active", panel.dataset.module === moduleName);
+  });
+
+  if (scroll) {
+    const target = document.querySelector(`.module-panel[data-module="${moduleName}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+}
+
 // ── Renderizado de resumen y ETL ──────────────────────────────────────────────
 
 function renderOverview(overview) {
   state.overview = overview;
-  $("#dataset-name").textContent = overview.source_file;
-  $("#dataset-range").textContent = `${overview.date_min} / ${overview.date_max}`;
-  $("#dataset-rows").textContent = new Intl.NumberFormat("es-CO").format(overview.rows);
-  $("#dataset-symbols").textContent = overview.symbol_count;
+  if (has("#dataset-name")) $("#dataset-name").textContent = overview.source_file;
+  if (has("#dataset-range")) $("#dataset-range").textContent = `${overview.date_min} / ${overview.date_max}`;
+  if (has("#dataset-rows")) $("#dataset-rows").textContent = new Intl.NumberFormat("es-CO").format(overview.rows);
+  if (has("#dataset-symbols")) $("#dataset-symbols").textContent = overview.symbol_count;
 
   fillSelect("#symbol-a", overview.symbols, overview.symbols.includes("VOO") ? "VOO" : overview.symbols[0]);
   fillSelect("#symbol-b", overview.symbols, overview.symbols.includes("ECOPETROL.CL") ? "ECOPETROL.CL" : overview.symbols[1]);
   fillSelect("#candle-symbol", overview.symbols, overview.symbols.includes("VOO") ? "VOO" : overview.symbols[0]);
 
   const cloud = $("#symbol-cloud");
-  cloud.innerHTML = "";
-  overview.symbols.forEach((s) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "pill";
-    btn.textContent = s;
-    btn.addEventListener("click", () => {
-      $("#candle-symbol").value = s;
-      refreshCandlestick().catch(console.warn);
-      refreshPatterns().catch(console.warn);
+  if (cloud) {
+    cloud.innerHTML = "";
+    overview.symbols.forEach((s) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pill";
+      btn.textContent = s;
+      btn.addEventListener("click", () => {
+        if (has("#candle-symbol")) $("#candle-symbol").value = s;
+        refreshCandlestick().catch(console.warn);
+        refreshPatterns().catch(console.warn);
+      });
+      cloud.appendChild(btn);
     });
-    cloud.appendChild(btn);
-  });
+  }
 
   renderPreview(overview.preview);
   renderEtlStats(overview.etl_report);
@@ -81,6 +108,7 @@ function renderOverview(overview) {
 
 function renderPreview(rows) {
   const table = $("#preview-table");
+  if (!table) return;
   table.innerHTML = "";
   if (!rows || !rows.length) {
     table.innerHTML = "<tbody><tr><td>Sin datos.</td></tr></tbody>";
@@ -110,15 +138,20 @@ function renderPreview(rows) {
 
 function renderEtlStats(report) {
   const section = $("#etl-stats-section");
+  if (!section) return;
   if (!report || !report.activos) { section.style.display = "none"; return; }
   section.style.display = "";
 
   const note = $("#etl-method-note");
-  const limpieza = report.limpieza || {};
-  note.textContent = limpieza.metodo_faltantes || "";
+  if (note) {
+    const limpieza = report.limpieza || {};
+    note.textContent = limpieza.metodo_faltantes || "";
+  }
 
   const tbody = $("#etl-tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
+  const limpieza = report.limpieza || {};
   const faltantes = (limpieza.faltantes_por_activo) || {};
 
   Object.entries(report.activos).forEach(([simbolo, stats]) => {
@@ -147,6 +180,7 @@ function renderEtlStats(report) {
 
 function renderDocs(docs) {
   const list = $("#algorithm-docs");
+  if (!list || !docs) return;
   list.innerHTML = "";
   Object.entries(docs).forEach(([name, doc]) => {
     const li = document.createElement("li");
@@ -187,6 +221,7 @@ function renderPatternDocs(docs) {
 
 function renderSimilarity(data) {
   const container = $("#similarity-metrics");
+  if (!container || !data || !data.metrics) return;
   const m = data.metrics;
   const cards = [
     ["Euclidiana precios", m.euclidean_prices, "cruda — sensible a escala"],
@@ -211,6 +246,7 @@ function renderSimilarity(data) {
 
 function renderRisk(items) {
   const tbody = $("#risk-table");
+  if (!tbody || !items) return;
   tbody.innerHTML = "";
   items.slice(0, 15).forEach((item) => {
     const sharpeClass = item.sharpe_ratio >= 1 ? "sharpe-good" : item.sharpe_ratio >= 0 ? "sharpe-mid" : "sharpe-bad";
@@ -230,6 +266,7 @@ function renderRisk(items) {
 
 function renderPatterns(data) {
   const box = $("#patterns-box");
+  if (!box || !data || !data.patterns) return;
   const p = data.patterns;
   box.innerHTML = `
     <article class="pattern-item">
@@ -247,6 +284,7 @@ function renderPatterns(data) {
 
 function renderCorrelationTable(data) {
   const wrap = $("#correlation-table-wrap");
+  if (!wrap || !data) return;
   const { symbols, matrix } = data;
   if (!symbols || !matrix) { wrap.innerHTML = ""; return; }
 
@@ -287,6 +325,7 @@ async function loadPatternDocs() {
 }
 
 async function refreshSimilarity() {
+  if (!has("#symbol-a") || !has("#symbol-b")) return;
   const symbolA = $("#symbol-a").value;
   const symbolB = $("#symbol-b").value;
   const data = await fetchJson("/similarity", {
@@ -296,15 +335,16 @@ async function refreshSimilarity() {
   });
   renderSimilarity(data);
   const q = `symbol_a=${encodeURIComponent(symbolA)}&symbol_b=${encodeURIComponent(symbolB)}`;
-  $("#series-plot").src = cacheBust(`/plot/series.png?${q}`);
-  $("#returns-plot").src = cacheBust(`/plot/returns.png?${q}`);
-  $("#download-report").href = `/report.pdf?${q}`;
+  if (has("#series-plot")) $("#series-plot").src = cacheBust(`/plot/series.png?${q}`);
+  if (has("#returns-plot")) $("#returns-plot").src = cacheBust(`/plot/returns.png?${q}`);
+  if (has("#download-report")) $("#download-report").href = `/report.pdf?${q}`;
 }
 
 async function refreshCandlestick() {
+  if (!has("#candle-symbol") || !has("#candlestick-plot")) return;
   const symbol = $("#candle-symbol").value;
-  const shortWindow = $("#short-window").value;
-  const longWindow = $("#long-window").value;
+  const shortWindow = has("#short-window") ? $("#short-window").value : 20;
+  const longWindow = has("#long-window") ? $("#long-window").value : 50;
   $("#candlestick-plot").src = cacheBust(
     `/plot/candlestick.png?symbol=${encodeURIComponent(symbol)}&short_window=${shortWindow}&long_window=${longWindow}`
   );
@@ -313,13 +353,14 @@ async function refreshCandlestick() {
 async function refreshRisk() {
   const data = await fetchJson("/risk");
   renderRisk(data.items);
-  $("#risk-plot").src = cacheBust("/plot/risk.png");
+  if (has("#risk-plot")) $("#risk-plot").src = cacheBust("/plot/risk.png");
 }
 
 async function refreshPatterns() {
+  if (!has("#candle-symbol")) return;
   const symbol = $("#candle-symbol").value;
-  const k = $("#pattern-k").value;
-  const threshold = $("#rebound-threshold").value;
+  const k = has("#pattern-k") ? $("#pattern-k").value : 3;
+  const threshold = has("#rebound-threshold") ? $("#rebound-threshold").value : 0.03;
   const data = await fetchJson(
     `/patterns?symbol=${encodeURIComponent(symbol)}&k=${k}&threshold=${threshold}`
   );
@@ -327,7 +368,7 @@ async function refreshPatterns() {
 }
 
 async function refreshCorrelation() {
-  $("#correlation-plot").src = cacheBust("/plot/correlation.png");
+  if (has("#correlation-plot")) $("#correlation-plot").src = cacheBust("/plot/correlation.png");
   const data = await fetchJson("/correlation");
   renderCorrelationTable(data);
 }
@@ -336,13 +377,29 @@ async function runDashboard(event) {
   if (event) event.preventDefault();
   setStatus("Ejecutando metricas y generando graficas...");
   const warn = (label) => (err) => console.warn(`${label}:`, err.message);
-  await Promise.allSettled([
-    refreshSimilarity().catch(warn("similitud")),
-    refreshCandlestick().catch(warn("velas")),
-    refreshRisk().catch(warn("riesgo")),
-    refreshPatterns().catch(warn("patrones")),
-    refreshCorrelation().catch(warn("correlacion")),
-  ]);
+  if (PAGE === "similarity") {
+    await refreshSimilarity().catch(warn("similitud"));
+  } else if (PAGE === "patterns") {
+    await Promise.allSettled([
+      refreshPatterns().catch(warn("patrones")),
+      refreshRisk().catch(warn("riesgo")),
+    ]);
+  } else if (PAGE === "visualization") {
+    await Promise.allSettled([
+      refreshCandlestick().catch(warn("velas")),
+      refreshCorrelation().catch(warn("correlacion")),
+    ]);
+  } else if (PAGE === "etl") {
+    await loadOverview();
+  } else {
+    await Promise.allSettled([
+      refreshSimilarity().catch(warn("similitud")),
+      refreshCandlestick().catch(warn("velas")),
+      refreshRisk().catch(warn("riesgo")),
+      refreshPatterns().catch(warn("patrones")),
+      refreshCorrelation().catch(warn("correlacion")),
+    ]);
+  }
   setStatus("Analisis actualizado.");
 }
 
@@ -360,32 +417,69 @@ async function rebuildDataset() {
 
 // ── Eventos ───────────────────────────────────────────────────────────────────
 
-$("#controls").addEventListener("submit", runDashboard);
+if (has("#controls")) {
+  $("#controls").addEventListener("submit", runDashboard);
+}
 
-$("#refresh-overview").addEventListener("click", async () => {
-  try {
-    await loadOverview();
-    await runDashboard();
-  } catch (err) {
-    setStatus(err.message, "error");
-  }
-});
+if (has("#refresh-overview")) {
+  $("#refresh-overview").addEventListener("click", async () => {
+    try {
+      await loadOverview();
+      if (PAGE === "dashboard") await runDashboard();
+    } catch (err) {
+      setStatus(err.message, "error");
+    }
+  });
+}
 
-$("#build-dataset").addEventListener("click", async () => {
-  try {
-    await rebuildDataset();
-  } catch (err) {
-    setStatus(err.message, "error");
-  }
-});
+if (has("#build-dataset")) {
+  $("#build-dataset").addEventListener("click", async () => {
+    try {
+      await rebuildDataset();
+    } catch (err) {
+      setStatus(err.message, "error");
+    }
+  });
+}
+
+if (has(".module-btn")) {
+  document.querySelectorAll(".module-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activateModule(btn.dataset.module);
+    });
+  });
+}
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function bootstrap() {
   try {
-    await Promise.all([loadDocs(), loadPatternDocs()]);
-    await loadOverview();
-    await runDashboard();
+    if (PAGE === "landing") {
+      return;
+    } else if (PAGE === "etl") {
+      await loadOverview();
+    } else if (PAGE === "similarity") {
+      await loadDocs();
+      await loadOverview();
+      await refreshSimilarity();
+    } else if (PAGE === "patterns") {
+      await loadPatternDocs();
+      await loadOverview();
+      await refreshPatterns();
+      await refreshRisk();
+    } else if (PAGE === "visualization") {
+      await loadOverview();
+      await refreshCandlestick();
+      await refreshCorrelation();
+    } else if (PAGE === "docs") {
+      await loadDocs();
+      await loadPatternDocs();
+    } else {
+      await Promise.all([loadDocs(), loadPatternDocs()]);
+      await loadOverview();
+      await runDashboard();
+      activateModule(state.activeModule, { scroll: false });
+    }
   } catch (err) {
     setStatus(err.message, "error");
   }
