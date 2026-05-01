@@ -6,11 +6,11 @@ Construir y explicar el dataset maestro con datos historicos de activos financie
 
 ## Archivos relacionados
 
-- `extraccion_datos.py`
+- `src/extraccion_datos.py`
 - `api.py`
 - `static/modules/etl/index.html`
-- `dataset_maestro.csv`
-- `dataset_maestro_report.json`
+- `data/processed/dataset_maestro.csv`
+- `data/processed/dataset_maestro_report.json`
 
 ## Entradas
 
@@ -30,4 +30,3 @@ Construir y explicar el dataset maestro con datos historicos de activos financie
 - Limpieza de OHLC.
 - Unificacion por calendario comun.
 - Marcado de faltantes con `*_Missing`.
-

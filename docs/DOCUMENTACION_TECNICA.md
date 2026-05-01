@@ -4,9 +4,9 @@
 
 La aplicacion se divide en cuatro capas:
 
-- `extraccion_datos.py`: ETL reproducible con peticiones HTTP directas a Yahoo Finance.
-- `analisis_financiero.py`: algoritmos matematicos implementados desde cero.
-- `visualizacion.py`: graficas con `matplotlib`.
+- `src/extraccion_datos.py`: ETL reproducible con peticiones HTTP directas a Yahoo Finance.
+- `src/analisis_financiero.py`: algoritmos matematicos implementados desde cero.
+- `src/visualizacion.py`: graficas con `matplotlib`.
 - `api.py`: aplicacion web Flask y endpoints JSON/PNG/PDF.
 
 Flujo de componentes:
@@ -53,7 +53,7 @@ la imputacion queda marcada y se documenta en el reporte.
 
 ## Algoritmos de similitud
 
-Todos los algoritmos estan en `analisis_financiero.py` y usan listas y bucles.
+Todos los algoritmos estan en `src/analisis_financiero.py` y usan listas y bucles.
 
 ### Distancia euclidiana
 
@@ -193,7 +193,7 @@ Categorias:
 
 ## Visualizaciones
 
-`visualizacion.py` genera:
+`src/visualizacion.py` genera:
 
 - Mapa de calor de correlacion Pearson entre todos los activos.
 - Grafico de velas con medias moviles simples calculadas manualmente.
@@ -204,7 +204,7 @@ Se usa `matplotlib`, que esta permitido para visualizacion basica.
 
 ## Reporte PDF
 
-`reporte_pdf.py` compila:
+`src/reporte_pdf.py` compila:
 
 - Resumen del dataset y fuente.
 - Metricas de similitud y complejidad.
@@ -235,7 +235,7 @@ http://127.0.0.1:8000/
 Reconstruir dataset por consola:
 
 ```powershell
-py -3 extraccion_datos.py
+py -3 src/extraccion_datos.py
 ```
 
 ## Uso de IA

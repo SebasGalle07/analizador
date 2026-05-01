@@ -7,7 +7,7 @@ Concentrar la arquitectura, formulas, instrucciones de arranque y soporte para s
 ## Archivos relacionados
 
 - `README.md`
-- `DOCUMENTACION_TECNICA.md`
+- `docs/DOCUMENTACION_TECNICA.md`
 - `docs/HOJA_DE_RUTA_COMPLETA.md`
 - `static/modules/docs/index.html`
 
@@ -19,4 +19,3 @@ Concentrar la arquitectura, formulas, instrucciones de arranque y soporte para s
 - Complejidad.
 - Instrucciones de ejecucion y despliegue.
 - Logs de consola.
-

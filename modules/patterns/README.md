@@ -6,7 +6,7 @@ Detectar patrones repetitivos con ventanas deslizantes y clasificar activos por 
 
 ## Archivos relacionados
 
-- `analisis_financiero.py`
+- `src/analisis_financiero.py`
 - `api.py`
 - `static/modules/patterns/index.html`
 
@@ -23,4 +23,3 @@ Detectar patrones repetitivos con ventanas deslizantes y clasificar activos por 
 - Desviacion estandar muestral.
 - Volatilidad anualizada.
 - Ordenamiento del ranking de riesgo.
-

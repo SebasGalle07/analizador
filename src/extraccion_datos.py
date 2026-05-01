@@ -7,8 +7,10 @@ from pathlib import Path
 
 import requests
 
+from src.paths import PROCESSED_DIR
 
-BASE_DIR = Path(__file__).resolve().parent
+
+BASE_DIR = PROCESSED_DIR
 LOGGER = logging.getLogger(__name__)
 
 # Yahoo Finance symbols queried through explicit HTTP requests. The first block
@@ -322,7 +324,7 @@ def guardar_en_csv(dataset, nombre_archivo="dataset_maestro.csv"):
         return None
     ruta = Path(nombre_archivo)
     if not ruta.is_absolute():
-        ruta = BASE_DIR / ruta
+        ruta = PROCESSED_DIR / ruta
     ruta.parent.mkdir(parents=True, exist_ok=True)
 
     columnas = list(dataset[0].keys())

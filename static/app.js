@@ -506,7 +506,7 @@ async function rebuildDataset() {
     const data = await fetchJson("/dataset/build", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ years: 5, nombre_archivo: "dataset_maestro.csv" }),
+      body: JSON.stringify({ years: 5, nombre_archivo: "data/processed/dataset_maestro.csv" }),
     });
     await loadOverview();
     await runDashboard();
