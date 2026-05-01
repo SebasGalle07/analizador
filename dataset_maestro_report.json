@@ -1,0 +1,231 @@
+{
+  "fuente": "Yahoo Finance (HTTP directo)",
+  "years_solicitados": 5,
+  "intervalo": "1d",
+  "activos_solicitados": 28,
+  "activos": {
+    "ECOPETROL.CL": {
+      "crudos": 1285,
+      "limpios": 1128,
+      "descartados": 157
+    },
+    "ISA.CL": {
+      "crudos": 1285,
+      "limpios": 1156,
+      "descartados": 129
+    },
+    "GEB.CL": {
+      "crudos": 1285,
+      "limpios": 1152,
+      "descartados": 133
+    },
+    "GRUPOARGOS.CL": {
+      "crudos": 1287,
+      "limpios": 1173,
+      "descartados": 114
+    },
+    "CEMARGOS.CL": {
+      "crudos": 1285,
+      "limpios": 1174,
+      "descartados": 111
+    },
+    "NUTRESA.CL": {
+      "crudos": 1286,
+      "limpios": 1101,
+      "descartados": 185
+    },
+    "BVC.CL": {
+      "crudos": 1284,
+      "limpios": 1116,
+      "descartados": 168
+    },
+    "EXITO.CL": {
+      "crudos": 1284,
+      "limpios": 1100,
+      "descartados": 184
+    },
+    "BOGOTA.CL": {
+      "crudos": 1285,
+      "limpios": 1089,
+      "descartados": 196
+    },
+    "GRUPOSURA.CL": {
+      "crudos": 1286,
+      "limpios": 1100,
+      "descartados": 186
+    },
+    "EC": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "CIB": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "AVAL": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "TGLS": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "VOO": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "SPY": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "QQQ": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "IWM": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "EFA": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "EEM": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "GLD": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "TLT": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "BND": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "VNQ": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "XLE": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "XLK": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "XLF": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    },
+    "DIA": {
+      "crudos": 1262,
+      "limpios": 1262,
+      "descartados": 0
+    }
+  },
+  "errores": {},
+  "limpieza": {
+    "metodo_faltantes": "Forward fill para precios en dias no operados y volumen 0; las columnas *_Missing conservan la trazabilidad del dato imputado.",
+    "impacto": "El forward fill evita perder fechas al comparar calendarios distintos, pero reduce artificialmente retornos en dias imputados. Por eso las metricas de retornos ignoran pares sin precio previo real cuando aplica.",
+    "faltantes_por_activo": {
+      "ECOPETROL.CL": 180,
+      "ISA.CL": 152,
+      "GEB.CL": 156,
+      "GRUPOARGOS.CL": 135,
+      "CEMARGOS.CL": 134,
+      "NUTRESA.CL": 207,
+      "BVC.CL": 192,
+      "EXITO.CL": 208,
+      "BOGOTA.CL": 219,
+      "GRUPOSURA.CL": 208,
+      "EC": 46,
+      "CIB": 46,
+      "AVAL": 46,
+      "TGLS": 46,
+      "VOO": 46,
+      "SPY": 46,
+      "QQQ": 46,
+      "IWM": 46,
+      "EFA": 46,
+      "EEM": 46,
+      "GLD": 46,
+      "TLT": 46,
+      "BND": 46,
+      "VNQ": 46,
+      "XLE": 46,
+      "XLK": 46,
+      "XLF": 46,
+      "DIA": 46
+    }
+  },
+  "advertencias": [],
+  "simbolos_descargados": [
+    "ECOPETROL.CL",
+    "ISA.CL",
+    "GEB.CL",
+    "GRUPOARGOS.CL",
+    "CEMARGOS.CL",
+    "NUTRESA.CL",
+    "BVC.CL",
+    "EXITO.CL",
+    "BOGOTA.CL",
+    "GRUPOSURA.CL",
+    "EC",
+    "CIB",
+    "AVAL",
+    "TGLS",
+    "VOO",
+    "SPY",
+    "QQQ",
+    "IWM",
+    "EFA",
+    "EEM",
+    "GLD",
+    "TLT",
+    "BND",
+    "VNQ",
+    "XLE",
+    "XLK",
+    "XLF",
+    "DIA"
+  ],
+  "filas": 1308,
+  "activos_descargados": 28,
+  "rango_final": {
+    "inicio": "2021-04-22",
+    "fin": "2026-04-30"
+  },
+  "validacion": {
+    "min_activos": 20,
+    "min_years": 5,
+    "activos_descargados": 28,
+    "rango_final": {
+      "inicio": "2021-04-22",
+      "fin": "2026-04-30"
+    },
+    "cumple": true
+  },
+  "archivo": "D:\\Repositorios_UQ\\proyecto-algoritmos\\analizador\\dataset_maestro.csv"
+}

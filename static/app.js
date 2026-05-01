@@ -5,6 +5,7 @@ const state = {
   docs: null,
   patternDocs: null,
   activeModule: "etl",
+  statusTimer: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -15,6 +16,56 @@ function setStatus(msg, type = "info") {
   if (!box) return;
   box.textContent = msg;
   box.dataset.type = type;
+}
+
+function setBusy(isBusy) {
+  const controls = document.querySelectorAll("button, input, select");
+  controls.forEach((el) => {
+    if (el.id === "download-report") return;
+    if (el.classList.contains("module-btn")) return;
+    el.disabled = isBusy;
+  });
+}
+
+function startStatusSequence(messages, stepMs = 900, type = "info") {
+  stopStatusSequence();
+  let index = 0;
+  if (messages.length > 0) {
+    setStatus(messages[0], type);
+  }
+  state.statusTimer = setInterval(() => {
+    index = Math.min(index + 1, messages.length - 1);
+    if (messages[index]) {
+      setStatus(messages[index], type);
+    }
+  }, stepMs);
+}
+
+function stopStatusSequence() {
+  if (state.statusTimer) {
+    clearInterval(state.statusTimer);
+    state.statusTimer = null;
+  }
+}
+
+function setStage(label, detail, type = "info") {
+  const message = detail ? `${label} | ${detail}` : label;
+  setStatus(message, type);
+}
+
+function setEtlLoading(isLoading, title = "Sincronizando ETL", text = "Preparando datos...") {
+  const shell = $("#etl-stats-section");
+  const overlay = $("#etl-loading-overlay");
+  const titleBox = $("#etl-loading-title");
+  const textBox = $("#etl-loading-text");
+  if (!shell || !overlay) return;
+  shell.classList.toggle("is-loading", isLoading);
+  overlay.style.display = isLoading ? "flex" : "none";
+  if (isLoading) {
+    shell.hidden = false;
+  }
+  if (titleBox) titleBox.textContent = title;
+  if (textBox) textBox.textContent = text;
 }
 
 function formatNumber(value, digits = 2) {
@@ -31,6 +82,10 @@ function formatPct(value, digits = 2) {
 function cacheBust(url) {
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}t=${Date.now()}`;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function fetchJson(url, options) {
@@ -80,6 +135,7 @@ function renderOverview(overview) {
   if (has("#dataset-range")) $("#dataset-range").textContent = `${overview.date_min} / ${overview.date_max}`;
   if (has("#dataset-rows")) $("#dataset-rows").textContent = new Intl.NumberFormat("es-CO").format(overview.rows);
   if (has("#dataset-symbols")) $("#dataset-symbols").textContent = overview.symbol_count;
+  renderEtlSummary(overview.etl_summary);
 
   fillSelect("#symbol-a", overview.symbols, overview.symbols.includes("VOO") ? "VOO" : overview.symbols[0]);
   fillSelect("#symbol-b", overview.symbols, overview.symbols.includes("ECOPETROL.CL") ? "ECOPETROL.CL" : overview.symbols[1]);
@@ -104,6 +160,30 @@ function renderOverview(overview) {
 
   renderPreview(overview.preview);
   renderEtlStats(overview.etl_report);
+}
+
+function renderEtlSummary(summary) {
+  if (!summary) return;
+  if (has("#etl-source")) $("#etl-source").textContent = summary.source || "-";
+  if (has("#etl-years")) $("#etl-years").textContent = summary.years_requested ?? "-";
+  if (has("#etl-requested")) $("#etl-requested").textContent = summary.assets_requested ?? "-";
+  if (has("#etl-downloaded")) $("#etl-downloaded").textContent = summary.assets_downloaded ?? "-";
+  if (has("#etl-final-range")) {
+    const start = summary.final_range?.start || "-";
+    const end = summary.final_range?.end || "-";
+    $("#etl-final-range").textContent = `${start} / ${end}`;
+  }
+  const warningBox = $("#etl-warning-box");
+  if (!warningBox) return;
+  const warnings = summary.warnings || [];
+  if (warnings.length > 0) {
+    warningBox.style.display = "";
+    warningBox.dataset.type = "warning";
+    warningBox.textContent = warnings.join(" ");
+  } else {
+    warningBox.style.display = "none";
+    warningBox.textContent = "";
+  }
 }
 
 function renderPreview(rows) {
@@ -139,8 +219,11 @@ function renderPreview(rows) {
 function renderEtlStats(report) {
   const section = $("#etl-stats-section");
   if (!section) return;
-  if (!report || !report.activos) { section.style.display = "none"; return; }
-  section.style.display = "";
+  if (!report || !report.activos) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
 
   const note = $("#etl-method-note");
   if (note) {
@@ -308,9 +391,15 @@ function renderCorrelationTable(data) {
 // ── Funciones de carga y refresco ────────────────────────────────────────────
 
 async function loadOverview() {
-  const overview = await fetchJson("/dataset/overview");
-  renderOverview(overview);
-  setStatus(`Dataset listo: ${overview.symbol_count} activos, ${overview.rows} filas.`);
+  if (has("#status-box")) setStage("ETL", "actualizando vista del dataset");
+  setEtlLoading(true, "Sincronizando ETL", "Leyendo resumen y vista previa...");
+  try {
+    const overview = await fetchJson("/dataset/overview");
+    renderOverview(overview);
+    setStage("ETL listo", `${overview.symbol_count} activos | ${overview.rows} filas`);
+  } finally {
+    setEtlLoading(false);
+  }
 }
 
 async function loadDocs() {
@@ -404,15 +493,30 @@ async function runDashboard(event) {
 }
 
 async function rebuildDataset() {
-  setStatus("Reconstruyendo dataset desde Yahoo Finance. Puede tardar varios minutos...");
-  const data = await fetchJson("/dataset/build", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ years: 5, nombre_archivo: "dataset_maestro.csv" }),
-  });
-  await loadOverview();
-  await runDashboard();
-  setStatus(`ETL completado: ${data.rows} filas generadas.`);
+  setBusy(true);
+  startStatusSequence([
+    "ETL | reconstruyendo dataset",
+    "ETL | descargando activos y validando respuesta",
+    "ETL | limpiando registros e inconsistencias",
+    "ETL | unificando calendarios bursatiles",
+    "ETL | guardando CSV maestro y reporte",
+  ]);
+  try {
+    setEtlLoading(true, "Reconstruyendo ETL", "Descargando y unificando datos...");
+    const data = await fetchJson("/dataset/build", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ years: 5, nombre_archivo: "dataset_maestro.csv" }),
+    });
+    await loadOverview();
+    await runDashboard();
+    stopStatusSequence();
+    setStage("ETL completado", `${data.rows} filas generadas`, "info");
+  } finally {
+    stopStatusSequence();
+    setEtlLoading(false);
+    setBusy(false);
+  }
 }
 
 // ── Eventos ───────────────────────────────────────────────────────────────────
@@ -424,10 +528,22 @@ if (has("#controls")) {
 if (has("#refresh-overview")) {
   $("#refresh-overview").addEventListener("click", async () => {
     try {
+      setBusy(true);
+      startStatusSequence([
+        "ETL | actualizando resumen",
+        "ETL | leyendo reporte y vista previa",
+      ], 700);
+      setEtlLoading(true, "Actualizando ETL", "Sincronizando reporte y vista previa...");
+      await sleep(3000);
       await loadOverview();
       if (PAGE === "dashboard") await runDashboard();
+      stopStatusSequence();
     } catch (err) {
+      stopStatusSequence();
+      setEtlLoading(false);
       setStatus(err.message, "error");
+    } finally {
+      setBusy(false);
     }
   });
 }

@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 from flask import Flask, jsonify, redirect, request, send_file, send_from_directory
@@ -31,6 +32,14 @@ STATIC_DIR = BASE_DIR / "static"
 DATASET_CANDIDATES = ("dataset_maestro.csv",)
 
 app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+)
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
+app.logger.setLevel(logging.INFO)
 
 
 def _json_error(message, status_code=400):
@@ -90,7 +99,16 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
     if report_path.exists():
         try:
             with report_path.open("r", encoding="utf-8") as f:
-                payload["etl_report"] = json.load(f)
+                etl_report = json.load(f)
+                payload["etl_report"] = etl_report
+                payload["etl_summary"] = {
+                    "source": etl_report.get("fuente"),
+                    "years_requested": etl_report.get("years_solicitados"),
+                    "assets_requested": etl_report.get("activos_solicitados"),
+                    "assets_downloaded": etl_report.get("activos_descargados"),
+                    "final_range": etl_report.get("rango_final"),
+                    "warnings": etl_report.get("advertencias", []),
+                }
         except Exception:
             pass
     return payload
@@ -159,6 +177,13 @@ def build_dataset():
     pausa = float(payload.get("pausa_segundos", 0.35))
     nombre = payload.get("nombre_archivo", "dataset_maestro.csv")
 
+    app.logger.info(
+        "API | ETL solicitado | simbolos=%s | anos=%s | intervalo=%s",
+        len(simbolos),
+        years,
+        interval,
+    )
+
     dataset, reporte = construir_dataset_maestro(
         simbolos=simbolos,
         years=years,
@@ -169,7 +194,17 @@ def build_dataset():
         nombre_archivo=nombre,
     )
     if not dataset:
+        app.logger.error("API | ETL fallido | no se construyo dataset")
         return _json_error("No se pudo construir el dataset.", 502)
+
+    resumen = reporte.get("validacion", {})
+    app.logger.info(
+        "API | ETL completado | activos=%s | filas=%s | rango=%s..%s",
+        reporte.get("activos_descargados", 0),
+        len(dataset),
+        (resumen.get("rango_final") or {}).get("inicio"),
+        (resumen.get("rango_final") or {}).get("fin"),
+    )
     return jsonify({"rows": len(dataset), "report": reporte, "preview": dataset[:3]})
 
 
