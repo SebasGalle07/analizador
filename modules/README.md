@@ -17,10 +17,10 @@ Este directorio organiza el proyecto por requerimientos funcionales para que sea
 
 ## Estado general
 
-- ETL: implementado y operando desde `extraccion_datos.py`.
-- Similitud: implementado en `analisis_financiero.py` y expuesto en la web.
-- Patrones y riesgo: implementado en `analisis_financiero.py` y consumido por la UI.
-- Visualizacion y PDF: implementado en `visualizacion.py` y `reporte_pdf.py`.
+- ETL: implementado y operando desde `src/extraccion_datos.py`.
+- Similitud: implementado en `src/analisis_financiero.py` y expuesto en la web.
+- Patrones y riesgo: implementado en `src/analisis_financiero.py` y consumido por la UI.
+- Visualizacion y PDF: implementado en `src/visualizacion.py` y `src/reporte_pdf.py`.
 - Documentacion y despliegue: en organizacion activa dentro de `modules/docs/` y `docs/`.
 
 ## Criterio de uso

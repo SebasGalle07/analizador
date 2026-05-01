@@ -6,8 +6,8 @@ Comparar dos activos financieros usando algoritmos clasicos implementados a mano
 
 ## Archivos relacionados
 
-- `analisis_financiero.py`
-- `visualizacion.py`
+- `src/analisis_financiero.py`
+- `src/visualizacion.py`
 - `api.py`
 - `static/modules/similarity/index.html`
 
@@ -24,4 +24,3 @@ Comparar dos activos financieros usando algoritmos clasicos implementados a mano
 - Calculo manual de retornos.
 - Complejidad temporal y espacial.
 - Interpretacion de resultados.
-

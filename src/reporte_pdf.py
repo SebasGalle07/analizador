@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Rectangle
 
-from analisis_financiero import (
+from src.analisis_financiero import (
     ALGORITHM_DOCS,
     comparar_activos,
     estadisticas_riesgo,
@@ -19,9 +19,7 @@ from analisis_financiero import (
     serie_ohlcv,
 )
 
-
-BASE_DIR = Path(__file__).resolve().parent
-REPORTS_DIR = BASE_DIR / "reports"
+from src.paths import REPORTS_DIR
 
 
 def _parse_date_axis(fechas):

@@ -7,7 +7,7 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-from analisis_financiero import (
+from src.analisis_financiero import (
     matriz_correlacion,
     media_movil_simple,
     serie_ohlcv,

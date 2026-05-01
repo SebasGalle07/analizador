@@ -2,8 +2,10 @@ import csv
 import math
 from pathlib import Path
 
+from src.paths import PROJECT_ROOT
 
-BASE_DIR = Path(__file__).resolve().parent
+
+BASE_DIR = PROJECT_ROOT
 
 
 def cargar_dataset(ruta_archivo):

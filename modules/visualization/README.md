@@ -6,8 +6,8 @@ Presentar los resultados analiticos mediante graficas y exportarlos en un report
 
 ## Archivos relacionados
 
-- `visualizacion.py`
-- `reporte_pdf.py`
+- `src/visualizacion.py`
+- `src/reporte_pdf.py`
 - `api.py`
 - `static/modules/visualization/index.html`
 
@@ -25,4 +25,3 @@ Presentar los resultados analiticos mediante graficas y exportarlos en un report
 - Que formulas utiliza.
 - Que algoritmo lo construye.
 - Como se inserta en el PDF.
-
