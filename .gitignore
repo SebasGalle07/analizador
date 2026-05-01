@@ -25,7 +25,5 @@ Thumbs.db
 .qodo/
 dataset_test.csv
 *.log
-
-# Keep documentation folder
-!docs/
-!docs/**
+docs/
+reports/
