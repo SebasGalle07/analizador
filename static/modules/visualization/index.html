@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visualizacion y PDF | Dashboard bursatil</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body data-page="visualization">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Requerimiento 4</p>
+      <h1>Visualizacion bursatil y reporte PDF</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="refresh-overview" class="btn secondary" type="button">Actualizar</button>
+      <a id="download-report" class="btn primary" href="/report.pdf">Reporte PDF</a>
+    </div>
+  </header>
+
+  <nav class="module-nav" aria-label="Navegacion por requerimientos">
+    <a class="module-btn" href="/ui/etl">1. ETL</a>
+    <a class="module-btn" href="/ui/similarity">2. Similitud</a>
+    <a class="module-btn" href="/ui/patterns">3. Patrones y riesgo</a>
+    <a class="module-btn active" href="/ui/visualization">4. Visualizacion y PDF</a>
+    <a class="module-btn" href="/ui/docs">5. Documentacion y despliegue</a>
+  </nav>
+
+  <main class="layout">
+    <section class="panel span-12">
+      <div class="summary-grid">
+        <div class="metric">
+          <span>Archivo</span>
+          <strong id="dataset-name">-</strong>
+        </div>
+        <div class="metric">
+          <span>Rango de fechas</span>
+          <strong id="dataset-range">-</strong>
+        </div>
+        <div class="metric">
+          <span>Filas</span>
+          <strong id="dataset-rows">-</strong>
+        </div>
+        <div class="metric">
+          <span>Activos</span>
+          <strong id="dataset-symbols">-</strong>
+        </div>
+      </div>
+      <p id="status-box" class="status">Cargando datos...</p>
+    </section>
+
+    <section class="panel span-7">
+      <div class="panel-title">
+        <p class="eyebrow">Tecnico</p>
+        <h2>Velas con medias moviles</h2>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>Activo</span>
+          <select id="candle-symbol"></select>
+        </label>
+        <div class="two-cols">
+          <label>
+            <span>SMA corta</span>
+            <input id="short-window" type="number" min="2" max="120" value="20">
+          </label>
+          <label>
+            <span>SMA larga</span>
+            <input id="long-window" type="number" min="3" max="250" value="50">
+          </label>
+        </div>
+      </div>
+      <img id="candlestick-plot" class="chart" alt="Grafico de velas">
+    </section>
+
+    <section class="panel span-5">
+      <div class="panel-title">
+        <p class="eyebrow">Correlacion</p>
+        <h2>Mapa de calor de Pearson</h2>
+      </div>
+      <img id="correlation-plot" class="chart" alt="Mapa de calor de correlacion">
+      <details class="corr-table-details">
+        <summary>Ver tabla numerica de correlaciones</summary>
+        <div class="table-wrap small" id="correlation-table-wrap"></div>
+      </details>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

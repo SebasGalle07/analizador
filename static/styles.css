@@ -25,6 +25,12 @@ body {
   background: var(--bg);
 }
 
+body.landing-page {
+  background:
+    radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 32%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -34,6 +40,121 @@ body {
   background: #0b1220;
   color: #ffffff;
   border-bottom: 1px solid #1f2937;
+}
+
+.landing-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 72px 20px 56px;
+}
+
+.landing-hero {
+  max-width: 760px;
+  margin-bottom: 28px;
+}
+
+.landing-hero h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2rem, 4vw, 4rem);
+  line-height: 1.02;
+}
+
+.landing-hero p {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.landing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.landing-card {
+  display: block;
+  text-decoration: none;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.landing-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(15, 118, 110, 0.35);
+  box-shadow: 0 18px 36px rgba(16, 24, 40, 0.12);
+}
+
+.landing-card span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 28px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: var(--primary-dark);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.landing-card strong {
+  display: block;
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+
+.landing-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.module-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.06);
+}
+
+.module-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.module-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 118, 110, 0.35);
+  box-shadow: 0 8px 16px rgba(16, 24, 40, 0.08);
+}
+
+.module-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary-dark);
 }
 
 .topbar h1,
@@ -101,6 +222,11 @@ body {
   border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 18px;
+}
+
+.module-panel-active {
+  border-color: rgba(15, 118, 110, 0.5);
+  box-shadow: 0 14px 34px rgba(15, 118, 110, 0.12);
 }
 
 .panel-title {
@@ -219,6 +345,51 @@ input:focus {
 
 .docs {
   margin-top: 18px;
+}
+
+.docs-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.docs-list li {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-alt);
+}
+
+.docs-list li + li {
+  margin-top: 10px;
+}
+
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.doc-card {
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.doc-card h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.doc-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+}
+
+.doc-card li + li {
+  margin-top: 8px;
 }
 
 .docs h3 {
@@ -374,6 +545,19 @@ th {
     padding: 18px;
   }
 
+  .landing-shell {
+    padding: 40px 16px 40px;
+  }
+
+  .landing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .module-nav {
+    top: 0;
+    padding: 12px 14px;
+  }
+
   .layout {
     padding: 12px;
     gap: 12px;
@@ -382,7 +566,8 @@ th {
   .summary-grid,
   .metrics-row,
   .pattern-box,
-  .two-cols {
+  .two-cols,
+  .docs-grid {
     grid-template-columns: 1fr;
   }
 }

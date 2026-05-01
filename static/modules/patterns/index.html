@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patrones y riesgo | Dashboard bursatil</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body data-page="patterns">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Requerimiento 3</p>
+      <h1>Patrones deslizantes y riesgo</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="refresh-overview" class="btn secondary" type="button">Actualizar</button>
+    </div>
+  </header>
+
+  <nav class="module-nav" aria-label="Navegacion por requerimientos">
+    <a class="module-btn" href="/ui/etl">1. ETL</a>
+    <a class="module-btn" href="/ui/similarity">2. Similitud</a>
+    <a class="module-btn active" href="/ui/patterns">3. Patrones y riesgo</a>
+    <a class="module-btn" href="/ui/visualization">4. Visualizacion y PDF</a>
+    <a class="module-btn" href="/ui/docs">5. Documentacion y despliegue</a>
+  </nav>
+
+  <main class="layout">
+    <section class="panel span-12">
+      <div class="summary-grid">
+        <div class="metric">
+          <span>Archivo</span>
+          <strong id="dataset-name">-</strong>
+        </div>
+        <div class="metric">
+          <span>Rango de fechas</span>
+          <strong id="dataset-range">-</strong>
+        </div>
+        <div class="metric">
+          <span>Filas</span>
+          <strong id="dataset-rows">-</strong>
+        </div>
+        <div class="metric">
+          <span>Activos</span>
+          <strong id="dataset-symbols">-</strong>
+        </div>
+      </div>
+      <p id="status-box" class="status">Cargando datos...</p>
+    </section>
+
+    <section class="panel span-5">
+      <div class="panel-title">
+        <p class="eyebrow">Patrones</p>
+        <h2>Ventanas deslizantes</h2>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>Activo</span>
+          <select id="candle-symbol"></select>
+        </label>
+        <div class="two-cols">
+          <label>
+            <span>k patron</span>
+            <input id="pattern-k" type="number" min="2" max="10" value="3">
+          </label>
+          <label>
+            <span>Rebote θ</span>
+            <input id="rebound-threshold" type="number" min="0.01" max="0.30" step="0.01" value="0.03">
+          </label>
+        </div>
+      </div>
+      <div class="docs">
+        <h3>Formulas de patrones</h3>
+        <div id="pattern-formulas" class="pattern-formulas"></div>
+      </div>
+      <div id="patterns-box" class="pattern-box"></div>
+    </section>
+
+    <section class="panel span-7">
+      <div class="panel-title">
+        <p class="eyebrow">Riesgo</p>
+        <h2>Volatilidad anualizada y Sharpe</h2>
+      </div>
+      <img id="risk-plot" class="chart" alt="Ranking de riesgo">
+      <div class="table-wrap small">
+        <table>
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th>Volatilidad</th>
+              <th>Ret. anual</th>
+              <th>Sharpe</th>
+              <th>Categoria</th>
+            </tr>
+          </thead>
+          <tbody id="risk-table"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
