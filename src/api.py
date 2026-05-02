@@ -225,10 +225,18 @@ def similarity():
     payload = request.get_json(silent=True) or {}
     simbolo_a = payload.get("symbol_a")
     simbolo_b = payload.get("symbol_b")
+    try:
+        dtw_banda = int(payload.get("dtw_banda", 100))
+    except (TypeError, ValueError):
+        return _json_error("La banda DTW debe ser un numero entero valido.")
+    if dtw_banda < 1:
+        return _json_error("La banda DTW debe ser mayor o igual a 1.")
     simbolos = extraer_simbolos(dataset)
     if simbolo_a not in simbolos or simbolo_b not in simbolos:
         return _json_error(f"Seleccione dos activos validos. Disponibles: {', '.join(simbolos)}")
-    comparacion = comparar_activos(dataset, simbolo_a, simbolo_b)
+    if simbolo_a == simbolo_b:
+        return _json_error("Seleccione dos activos diferentes para comparar.")
+    comparacion = comparar_activos(dataset, simbolo_a, simbolo_b, dtw_banda=dtw_banda)
     # Keep API responses light; full images are served by plotting endpoints.
     comparacion["prices"]["dates"] = comparacion["prices"]["dates"][-250:]
     comparacion["prices"][simbolo_a] = comparacion["prices"][simbolo_a][-250:]
