@@ -141,6 +141,14 @@ function renderOverview(overview) {
   fillSelect("#symbol-b", overview.symbols, overview.symbols.includes("ECOPETROL.CL") ? "ECOPETROL.CL" : overview.symbols[1]);
   fillSelect("#candle-symbol", overview.symbols, overview.symbols.includes("VOO") ? "VOO" : overview.symbols[0]);
 
+  if (has("#download-report")) {
+    const symbolA = overview.symbols[0];
+    const symbolB = overview.symbols[1] || overview.symbols[0];
+    if (symbolA && symbolB) {
+      $("#download-report").href = `/report.pdf?symbol_a=${encodeURIComponent(symbolA)}&symbol_b=${encodeURIComponent(symbolB)}`;
+    }
+  }
+
   const cloud = $("#symbol-cloud");
   if (cloud) {
     cloud.innerHTML = "";
@@ -277,6 +285,7 @@ function renderDocs(docs) {
         ${doc.formula_norm ? `<code>${doc.formula_norm}</code>` : ""}
         <code class="pseudo">${doc.pseudocode}</code>
       </details>
+      ${doc.use ? `<span class="algorithm-use">${doc.use}</span>` : ""}
     `;
     list.appendChild(li);
   });
@@ -417,10 +426,11 @@ async function refreshSimilarity() {
   if (!has("#symbol-a") || !has("#symbol-b")) return;
   const symbolA = $("#symbol-a").value;
   const symbolB = $("#symbol-b").value;
+  const dtwBand = has("#dtw-band") ? $("#dtw-band").value : 100;
   const data = await fetchJson("/similarity", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ symbol_a: symbolA, symbol_b: symbolB }),
+    body: JSON.stringify({ symbol_a: symbolA, symbol_b: symbolB, dtw_banda: dtwBand }),
   });
   renderSimilarity(data);
   const q = `symbol_a=${encodeURIComponent(symbolA)}&symbol_b=${encodeURIComponent(symbolB)}`;
@@ -466,30 +476,34 @@ async function runDashboard(event) {
   if (event) event.preventDefault();
   setStatus("Ejecutando metricas y generando graficas...");
   const warn = (label) => (err) => console.warn(`${label}:`, err.message);
-  if (PAGE === "similarity") {
-    await refreshSimilarity().catch(warn("similitud"));
-  } else if (PAGE === "patterns") {
-    await Promise.allSettled([
-      refreshPatterns().catch(warn("patrones")),
-      refreshRisk().catch(warn("riesgo")),
-    ]);
-  } else if (PAGE === "visualization") {
-    await Promise.allSettled([
-      refreshCandlestick().catch(warn("velas")),
-      refreshCorrelation().catch(warn("correlacion")),
-    ]);
-  } else if (PAGE === "etl") {
-    await loadOverview();
-  } else {
-    await Promise.allSettled([
-      refreshSimilarity().catch(warn("similitud")),
-      refreshCandlestick().catch(warn("velas")),
-      refreshRisk().catch(warn("riesgo")),
-      refreshPatterns().catch(warn("patrones")),
-      refreshCorrelation().catch(warn("correlacion")),
-    ]);
+  try {
+    if (PAGE === "similarity") {
+      await refreshSimilarity().catch(warn("similitud"));
+    } else if (PAGE === "patterns") {
+      await Promise.allSettled([
+        refreshPatterns().catch(warn("patrones")),
+        refreshRisk().catch(warn("riesgo")),
+      ]);
+    } else if (PAGE === "visualization") {
+      await Promise.allSettled([
+        refreshCandlestick().catch(warn("velas")),
+        refreshCorrelation().catch(warn("correlacion")),
+      ]);
+    } else if (PAGE === "etl") {
+      await loadOverview();
+    } else {
+      await Promise.allSettled([
+        refreshSimilarity().catch(warn("similitud")),
+        refreshCandlestick().catch(warn("velas")),
+        refreshRisk().catch(warn("riesgo")),
+        refreshPatterns().catch(warn("patrones")),
+        refreshCorrelation().catch(warn("correlacion")),
+      ]);
+    }
+    setStatus("Analisis actualizado.");
+  } catch (err) {
+    setStatus(err.message, "error");
   }
-  setStatus("Analisis actualizado.");
 }
 
 async function rebuildDataset() {
