@@ -295,9 +295,25 @@ def media_movil_simple(valores, ventana):
     return resultado
 
 
+def max_drawdown(precios):
+    if not precios:
+        return 0.0
+    pico = precios[0]
+    peor = 0.0
+    for precio in precios:
+        if precio > pico:
+            pico = precio
+        if pico > 0:
+            drawdown = (pico - precio) / pico
+            if drawdown > peor:
+                peor = drawdown
+    return peor
+
+
 def contar_patrones(retornos, k=3, umbral_rebote=0.03):
     positivos = 0
     rebotes = 0
+    consolidaciones = 0
     n = len(retornos)
 
     for i in range(0, n - k + 1):
@@ -318,9 +334,19 @@ def contar_patrones(retornos, k=3, umbral_rebote=0.03):
         if negativos and retornos[i + k] >= umbral_rebote:
             rebotes += 1
 
+    for i in range(0, n - k + 1):
+        estable = True
+        for j in range(k):
+            if abs(retornos[i + j]) > umbral_rebote:
+                estable = False
+                break
+        if estable:
+            consolidaciones += 1
+
     return {
         "positive_streak_k": positivos,
         "negative_then_strong_rebound": rebotes,
+        "low_volatility_consolidation": consolidaciones,
         "k": k,
         "rebound_threshold": umbral_rebote,
     }
@@ -343,6 +369,7 @@ def estadisticas_riesgo(dataset):
         annual_return = media_diaria * 252
         # Sharpe simplificado (sin tasa libre de riesgo): retorno_anual / volatilidad_anual
         sharpe_ratio = annual_return / volatilidad_anual if volatilidad_anual > 0 else 0.0
+        drawdown = max_drawdown(precios)
         resultados.append(
             {
                 "symbol": simbolo,
@@ -351,6 +378,7 @@ def estadisticas_riesgo(dataset):
                 "annual_volatility": volatilidad_anual,
                 "annual_return": annual_return,
                 "sharpe_ratio": sharpe_ratio,
+                "max_drawdown": drawdown,
                 "risk_category": categoria,
                 "observations": len(retornos),
             }
@@ -424,14 +452,20 @@ ALGORITHM_DOCS = {
 PATTERN_DOCS = {
     "positive_streak": {
         "name": "Racha alcista (P1)",
-        "formal": "P1(i,k): ∀j ∈ [i, i+k−1]  →  r_j > 0",
-        "description": "k dias consecutivos con retorno positivo. Detecta impulsos alcistas sostenidos.",
-        "complexity": "O(n·k)",
+        "formal": "P1(i,k): for all j in [i, i+k-1], r_j > 0",
+        "description": "k days in a row with positive return. Detects sustained upward momentum.",
+        "complexity": "O(n*k)",
     },
     "negative_rebound": {
-        "name": "Rebote tras caida (P2)",
-        "formal": "P2(i,k,θ): (∀j ∈ [i, i+k−1] → r_j < 0)  ∧  r_{i+k} ≥ θ",
-        "description": "k dias negativos seguidos de rebote >= θ. Modela recuperaciones post-correccion.",
-        "complexity": "O(n·k)",
+        "name": "Rebound after drop (P2)",
+        "formal": "P2(i,k,theta): (for all j in [i, i+k-1], r_j < 0) and r_(i+k) >= theta",
+        "description": "k negative days followed by a rebound >= theta. Models post-correction recovery.",
+        "complexity": "O(n*k)",
+    },
+    "low_volatility_consolidation": {
+        "name": "Low-volatility consolidation (P3)",
+        "formal": "P3(i,k,theta): for all j in [i, i+k-1], |r_j| <= theta",
+        "description": "k days with small movements. Detects sideways or consolidation periods.",
+        "complexity": "O(n*k)",
     },
 }

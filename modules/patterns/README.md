@@ -14,7 +14,9 @@ Detectar patrones repetitivos con ventanas deslizantes y clasificar activos por 
 
 - Racha alcista.
 - Rebote tras caida.
+- Consolidacion de baja volatilidad.
 - Volatilidad anualizada.
+- Maximo drawdown.
 - Categoria de riesgo.
 
 ## Evidencia para sustentar

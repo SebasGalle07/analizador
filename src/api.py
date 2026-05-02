@@ -261,8 +261,15 @@ def patterns():
     if error:
         return error
     simbolo = request.args.get("symbol")
-    k = int(request.args.get("k", 3))
-    threshold = float(request.args.get("threshold", 0.03))
+    try:
+        k = int(request.args.get("k", 3))
+        threshold = float(request.args.get("threshold", 0.03))
+    except (TypeError, ValueError):
+        return _json_error("Los parametros k y threshold deben ser numericos validos.")
+    if k < 2:
+        return _json_error("k debe ser mayor o igual a 2.")
+    if threshold <= 0 or threshold >= 1:
+        return _json_error("threshold debe estar entre 0 y 1.")
     simbolos = extraer_simbolos(dataset)
     if simbolo not in simbolos:
         return _json_error(f"Simbolo invalido. Disponibles: {', '.join(simbolos)}")
