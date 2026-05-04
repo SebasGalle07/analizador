@@ -30,22 +30,45 @@ def generar_heatmap_correlacion(dataset):
     data = matriz_correlacion(dataset)
     simbolos = data["symbols"]
     matriz = data["matrix"]
+    n = len(simbolos)
 
-    size = max(7, min(16, len(simbolos) * 0.55))
+    masked = []
+    for i in range(n):
+        row = []
+        for j in range(n):
+            row.append(float("nan") if j > i else matriz[i][j])
+        masked.append(row)
+
+    size = max(8, min(16, n * 0.58))
     fig, ax = plt.subplots(figsize=(size, size))
-    im = ax.imshow(matriz, cmap="RdBu_r", vmin=-1, vmax=1)
-    ax.set_xticks(range(len(simbolos)))
-    ax.set_yticks(range(len(simbolos)))
+    fig.patch.set_facecolor("white")
+
+    cmap = plt.cm.coolwarm.copy()
+    cmap.set_bad(color="#f1f5f9")
+    im = ax.imshow(masked, cmap=cmap, vmin=-1, vmax=1, aspect="auto")
+
+    ax.set_xticks(range(n))
+    ax.set_yticks(range(n))
     ax.set_xticklabels(simbolos, rotation=75, ha="right", fontsize=7)
     ax.set_yticklabels(simbolos, fontsize=7)
-    ax.set_title("Matriz de correlacion de retornos", fontsize=12, pad=12)
-    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    ax.set_title("Correlacion de retornos diarios", fontsize=13, pad=14, weight="bold")
 
-    if len(simbolos) <= 24:
-        for i in range(len(simbolos)):
-            for j in range(len(simbolos)):
-                ax.text(j, i, f"{matriz[i][j]:.2f}", ha="center", va="center", fontsize=5)
+    for k in range(n + 1):
+        ax.axhline(k - 0.5, color="white", linewidth=0.6)
+        ax.axvline(k - 0.5, color="white", linewidth=0.6)
 
+    for i in range(n):
+        for j in range(i + 1):
+            val = matriz[i][j]
+            if i != j and abs(val) >= 0.6:
+                txt_color = "white" if abs(val) >= 0.75 else "#0f172a"
+                ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=5.5, color=txt_color)
+
+    cbar = fig.colorbar(im, ax=ax, fraction=0.040, pad=0.03, shrink=0.8)
+    cbar.set_label("Pearson r", fontsize=9)
+    cbar.ax.tick_params(labelsize=8)
+
+    fig.tight_layout()
     return _fig_to_png_bytes(fig)
 
 

@@ -120,8 +120,8 @@ def _add_cards(fig, cards, left=LEFT, top=0.82, card_w=0.26, card_h=0.09, gap=0.
 
 
 def _algorithm_cards(fig, docs, start_y=0.82):
-    card_h = 0.115
-    gap = 0.02
+    card_h = 0.100
+    gap = 0.015
     left = LEFT
     right = RIGHT
     width = right - left
@@ -270,12 +270,36 @@ def _candle_chart(ax, dataset, simbolo_a):
 def _heatmap_chart(ax, correlacion):
     symbols = correlacion["symbols"]
     matrix = correlacion["matrix"]
-    im = ax.imshow(matrix, cmap="RdBu_r", vmin=-1, vmax=1)
-    ax.set_xticks(range(len(symbols)))
-    ax.set_yticks(range(len(symbols)))
+    n = len(symbols)
+
+    masked = []
+    for i in range(n):
+        row = []
+        for j in range(n):
+            row.append(float("nan") if j > i else matrix[i][j])
+        masked.append(row)
+
+    cmap = plt.cm.coolwarm.copy()
+    cmap.set_bad(color="#f1f5f9")
+    im = ax.imshow(masked, cmap=cmap, vmin=-1, vmax=1, aspect="auto")
+
+    ax.set_xticks(range(n))
+    ax.set_yticks(range(n))
     ax.set_xticklabels(symbols, rotation=70, ha="right", fontsize=6)
     ax.set_yticklabels(symbols, fontsize=6)
     ax.set_title("Mapa de calor de correlacion", loc="left", fontsize=13, weight="bold", color=TEXT)
+
+    for k in range(n + 1):
+        ax.axhline(k - 0.5, color="white", linewidth=0.5)
+        ax.axvline(k - 0.5, color="white", linewidth=0.5)
+
+    for i in range(n):
+        for j in range(i + 1):
+            val = matrix[i][j]
+            if i != j and abs(val) >= 0.6:
+                txt_color = "white" if abs(val) >= 0.75 else TEXT
+                ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=5, color=txt_color)
+
     return im
 
 
