@@ -9,7 +9,7 @@ Construir y explicar el dataset maestro con datos historicos de activos financie
 - `src/extraccion_datos.py`
 - `api.py`
 - `static/modules/etl/index.html`
-- `data/processed/dataset_maestro.csv`
+- `data/processed/dataset_maestro.json`
 - `data/processed/dataset_maestro_report.json`
 
 ## Entradas
@@ -20,7 +20,7 @@ Construir y explicar el dataset maestro con datos historicos de activos financie
 
 ## Salidas
 
-- CSV maestro consolidado.
+- JSON maestro consolidado.
 - Reporte JSON de limpieza.
 - Vista previa de datos y estadisticas ETL.
 

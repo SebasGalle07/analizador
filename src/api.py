@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from pathlib import Path
 
 from flask import Flask, jsonify, redirect, request, send_file, send_from_directory
@@ -26,9 +27,17 @@ from src.visualizacion import (
     generar_grafico_velas,
     generar_heatmap_correlacion,
 )
+from src.paths import get_runtime_processed_dir
+
+
+RUNTIME_PROCESSED_DIR = get_runtime_processed_dir()
 DATASET_CANDIDATES = (
-    "data/processed/dataset_maestro.csv",
-    "dataset_maestro.csv",
+    RUNTIME_PROCESSED_DIR / "dataset_maestro.json",
+    RUNTIME_PROCESSED_DIR / "dataset_maestro.csv",
+    PROJECT_ROOT / "data/processed/dataset_maestro.json",
+    PROJECT_ROOT / "data/processed/dataset_maestro.csv",
+    PROJECT_ROOT / "dataset_maestro.json",
+    PROJECT_ROOT / "dataset_maestro.csv",
 )
 
 app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
@@ -48,19 +57,32 @@ def _json_error(message, status_code=400):
     return response
 
 
+def _expand_dataset_candidates(path):
+    if path.suffix.lower() in {".json", ".csv"}:
+        return [path]
+    return [path.with_suffix(".json"), path.with_suffix(".csv"), path]
+
+
 def resolve_dataset_path(ruta_archivo=None):
     if ruta_archivo:
-        path = Path(ruta_archivo)
-        if not path.is_absolute():
-            path = PROJECT_ROOT / ruta_archivo
-        if path.exists():
-            return path
+        original_path = Path(ruta_archivo)
+        is_relative = not original_path.is_absolute()
+        path = original_path if not is_relative else PROJECT_ROOT / ruta_archivo
+        search_paths = list(_expand_dataset_candidates(path))
+        if is_relative:
+            if len(original_path.parts) == 1:
+                search_paths.extend(_expand_dataset_candidates(RUNTIME_PROCESSED_DIR / original_path.name))
+            elif original_path.parts[:2] == ("data", "processed"):
+                search_paths.extend(_expand_dataset_candidates(RUNTIME_PROCESSED_DIR / original_path.name))
+        for candidate in search_paths:
+            if candidate.exists():
+                return candidate
         return None
 
     for candidate in DATASET_CANDIDATES:
-        path = PROJECT_ROOT / candidate
-        if path.exists():
-            return path
+        for expanded in _expand_dataset_candidates(Path(candidate)):
+            if expanded.exists():
+                return expanded
     return None
 
 
@@ -72,7 +94,7 @@ def load_dataset_or_error():
 
     dataset_path = resolve_dataset_path(ruta)
     if not dataset_path:
-        return None, None, _json_error("No se encontro dataset_maestro.csv. Reconstruya el dataset.", 404)
+        return None, None, _json_error("No se encontro el dataset maestro. Reconstruya el dataset.", 404)
     try:
         dataset = cargar_dataset(dataset_path)
         return dataset, dataset_path, None
@@ -173,12 +195,16 @@ def build_dataset():
     pausa = float(payload.get("pausa_segundos", 0.35))
     nombre = payload.get("nombre_archivo")
     if not nombre:
-        nombre = str(PROJECT_ROOT / "data/processed/dataset_maestro.csv")
+        nombre = str(RUNTIME_PROCESSED_DIR / "dataset_maestro.json")
     else:
         nombre_path = Path(nombre)
+        if nombre_path.suffix.lower() not in {".json", ".csv"}:
+            nombre_path = nombre_path.with_suffix(".json")
         if not nombre_path.is_absolute():
             if len(nombre_path.parts) == 1:
-                nombre = str(PROJECT_ROOT / "data/processed" / nombre_path)
+                nombre = str(RUNTIME_PROCESSED_DIR / nombre_path)
+            elif nombre_path.parts[:2] == ("data", "processed"):
+                nombre = str(RUNTIME_PROCESSED_DIR / nombre_path.name)
             else:
                 nombre = str(PROJECT_ROOT / nombre_path)
 
@@ -362,4 +388,7 @@ def report_pdf():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8000, debug=True)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    debug = os.getenv("DEBUG", "0") == "1"
+    app.run(host=host, port=port, debug=debug, use_reloader=False)

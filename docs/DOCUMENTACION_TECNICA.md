@@ -14,7 +14,7 @@ Flujo de componentes:
 ```text
 Usuario web
   -> Flask API
-    -> ETL HTTP Yahoo Finance -> CSV maestro
+    -> ETL HTTP Yahoo Finance -> JSON maestro
     -> Analisis financiero manual -> metricas JSON
     -> Matplotlib -> PNG/PDF
 ```
@@ -28,7 +28,7 @@ https://query2.finance.yahoo.com/v8/finance/chart/{SIMBOLO}
 ```
 
 El codigo construye manualmente `period1`, `period2`, `interval`, cabeceras HTTP,
-manejo de errores de estado, parsing JSON y escritura CSV. No se usa `yfinance`,
+manejo de errores de estado, parsing JSON y escritura JSON. No se usa `yfinance`,
 `pandas_datareader`, `pandas`, `numpy` ni funciones que encapsulen la descarga.
 
 El portafolio por defecto incluye acciones colombianas disponibles en Yahoo

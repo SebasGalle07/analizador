@@ -546,7 +546,7 @@ def ejecutar_benchmark(dataset, simbolo="VOO", algoritmos=None):
 
 if __name__ == "__main__":
     print("=== PREPARANDO PISTA DE CARRERAS ===")
-    mi_dataset = cargar_dataset("dataset_maestro.csv")
+    mi_dataset = cargar_dataset("dataset_maestro.json")
     simbolo_analisis = "VOO"
 
     if mi_dataset:

@@ -20,7 +20,7 @@ from src.analisis_financiero import (
     media_movil_simple,
     serie_ohlcv,
 )
-from src.paths import REPORTS_DIR
+from src.paths import REPORTS_DIR, get_runtime_reports_dir
 
 
 PAGE_W = 8.27
@@ -304,14 +304,17 @@ def _heatmap_chart(ax, correlacion):
 
 
 def generar_reporte_pdf(dataset, simbolo_a, simbolo_b, ruta_salida=None):
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    runtime_reports_dir = get_runtime_reports_dir()
     if ruta_salida is None:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        ruta_salida = REPORTS_DIR / (
+        ruta_salida = runtime_reports_dir / (
             f"reporte_financiero_{_safe_token(simbolo_a)}_{_safe_token(simbolo_b)}_{stamp}.pdf"
         )
     else:
         ruta_salida = Path(ruta_salida)
+        if not ruta_salida.is_absolute():
+            ruta_salida = runtime_reports_dir / ruta_salida.name if len(ruta_salida.parts) == 1 else REPORTS_DIR.parent.parent / ruta_salida
+    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
 
     simbolos = extraer_simbolos(dataset)
     comparacion = comparar_activos(dataset, simbolo_a, simbolo_b)

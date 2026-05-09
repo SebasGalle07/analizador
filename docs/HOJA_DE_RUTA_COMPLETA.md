@@ -79,7 +79,7 @@ analizador/
   static/
   docs/
   reports/
-  data/processed/dataset_maestro.csv
+  data/processed/dataset_maestro.json
   run.py
 ```
 
@@ -92,7 +92,7 @@ Responsabilidad:
 - Descarga de datos.
 - Limpieza.
 - Unificacion de calendarios.
-- Persistencia del CSV maestro.
+- Persistencia del JSON maestro.
 
 Modulo sugerido:
 

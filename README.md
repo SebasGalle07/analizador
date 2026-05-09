@@ -23,7 +23,7 @@ similitud; los algoritmos principales estan implementados con listas y bucles.
 - `api.py`: punto de entrada que levanta la app Flask.
 - `static/`: landing page, CSS, JavaScript y paginas modulares.
 - `docs/DOCUMENTACION_TECNICA.md`: arquitectura, formulas y complejidades.
-- `data/processed/`: dataset maestro y reporte ETL generados.
+- `data/processed/`: dataset maestro JSON y reporte ETL generados.
 - `reports/`: PDFs generados por la aplicacion.
 
 ## Ejecucion
@@ -50,7 +50,7 @@ py -3 src/extraccion_datos.py
 
 Desde el dashboard, usar el boton `Reconstruir ETL`.
 
-El archivo generado es `data/processed/dataset_maestro.csv`. Cada activo tiene columnas:
+El archivo generado es `data/processed/dataset_maestro.json`. Cada activo tiene columnas:
 
 ```text
 <SIMBOLO>_Open
@@ -60,6 +60,9 @@ El archivo generado es `data/processed/dataset_maestro.csv`. Cada activo tiene c
 <SIMBOLO>_Volume
 <SIMBOLO>_Missing
 ```
+
+Durante la migracion, la app sigue aceptando el CSV maestro legado si ya existe,
+pero los nuevos rebuilds guardan JSON por defecto.
 
 ## Rutas web
 
@@ -72,7 +75,7 @@ El archivo generado es `data/processed/dataset_maestro.csv`. Cada activo tiene c
 
 ## Endpoints principales
 
-- `GET /dataset/overview`: resumen del CSV.
+- `GET /dataset/overview`: resumen del dataset maestro.
 - `POST /dataset/build`: ejecuta ETL completo.
 - `POST /similarity`: compara dos activos con Euclidiana, Pearson, DTW y coseno.
 - `GET /risk`: volatilidad anualizada y categoria de riesgo.
@@ -85,8 +88,21 @@ El archivo generado es `data/processed/dataset_maestro.csv`. Cada activo tiene c
 ## Restricciones cumplidas
 
 - Descarga por HTTP directo con `requests`.
-- Parsing JSON y escritura CSV manual.
+- Parsing JSON y escritura manual del dataset maestro.
 - Algoritmos de similitud implementados desde cero.
 - Medias moviles, desviacion estandar y correlacion calculadas manualmente.
 - Visualizacion con `matplotlib`.
 - Reporte PDF reproducible.
+
+## Despliegue en Render
+
+Para que los archivos generados persistan entre reinicios, configura una ruta escribible en la variable de entorno `ANALIZADOR_DATA_DIR` y, si quieres separar reportes, `ANALIZADOR_REPORTS_DIR`.
+
+Ejemplo para Render:
+
+```text
+ANALIZADOR_DATA_DIR=/opt/render/project/src/storage/data
+ANALIZADOR_REPORTS_DIR=/opt/render/project/src/storage/reports
+```
+
+Si no configuras esas variables, la app intentara escribir en `data/processed/` y `reports/` en local, y si el entorno no permite escritura usara directorios temporales para no romper la ejecucion.

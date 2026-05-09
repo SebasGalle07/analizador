@@ -518,14 +518,14 @@ async function rebuildDataset() {
     "ETL | descargando activos y validando respuesta",
     "ETL | limpiando registros e inconsistencias",
     "ETL | unificando calendarios bursatiles",
-    "ETL | guardando CSV maestro y reporte",
+    "ETL | guardando JSON maestro y reporte",
   ]);
   try {
     setEtlLoading(true, "Reconstruyendo ETL", "Descargando y unificando datos...");
     const data = await fetchJson("/dataset/build", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ years: 5, nombre_archivo: "data/processed/dataset_maestro.csv" }),
+      body: JSON.stringify({ years: 5, nombre_archivo: "dataset_maestro.json" }),
     });
     await loadOverview();
     await runDashboard();

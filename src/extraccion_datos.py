@@ -7,10 +7,10 @@ from pathlib import Path
 
 import requests
 
-from src.paths import PROCESSED_DIR
+from src.paths import PROCESSED_DIR, get_runtime_processed_dir
 
 
-BASE_DIR = PROCESSED_DIR
+BASE_DIR = get_runtime_processed_dir()
 LOGGER = logging.getLogger(__name__)
 
 # Yahoo Finance symbols queried through explicit HTTP requests. The first block
@@ -260,11 +260,32 @@ def unificar_portafolio(datos_por_activo):
     return dataset, limpieza
 
 
-def guardar_reporte_json(reporte, nombre_base="dataset_maestro"):
-    """Persiste el reporte del ETL junto al CSV para que el dashboard lo muestre."""
-    ruta = BASE_DIR / f"{nombre_base}_report.json"
+def guardar_reporte_json(reporte, nombre_base="dataset_maestro", directorio=None):
+    """Persiste el reporte del ETL junto al dataset maestro para que el dashboard lo muestre."""
+    base_dir = Path(directorio) if directorio else get_runtime_processed_dir()
+    base_dir.mkdir(parents=True, exist_ok=True)
+    ruta = base_dir / f"{nombre_base}_report.json"
     with ruta.open("w", encoding="utf-8") as archivo:
         json.dump(reporte, archivo, ensure_ascii=False, indent=2, default=str)
+    return ruta
+
+
+def _resolver_ruta_salida(nombre_archivo, extension_por_defecto=".json"):
+    ruta = Path(nombre_archivo)
+    if ruta.suffix.lower() not in {".json", ".csv"}:
+        ruta = ruta.with_suffix(extension_por_defecto)
+    if not ruta.is_absolute():
+        ruta = get_runtime_processed_dir() / ruta.name if len(ruta.parts) == 1 else PROCESSED_DIR.parent.parent / ruta
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    return ruta
+
+
+def guardar_en_json(dataset, nombre_archivo="dataset_maestro.json"):
+    if not dataset:
+        return None
+    ruta = _resolver_ruta_salida(nombre_archivo, ".json")
+    with ruta.open(mode="w", encoding="utf-8") as archivo:
+        json.dump(dataset, archivo, ensure_ascii=False, indent=2, default=str)
     return ruta
 
 
@@ -322,10 +343,7 @@ def validar_requerimientos_etl(reporte, dataset, min_activos=20, min_years=5, st
 def guardar_en_csv(dataset, nombre_archivo="dataset_maestro.csv"):
     if not dataset:
         return None
-    ruta = Path(nombre_archivo)
-    if not ruta.is_absolute():
-        ruta = PROCESSED_DIR / ruta
-    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta = _resolver_ruta_salida(nombre_archivo, ".csv")
 
     columnas = list(dataset[0].keys())
     with ruta.open(mode="w", newline="", encoding="utf-8") as archivo:
@@ -335,6 +353,13 @@ def guardar_en_csv(dataset, nombre_archivo="dataset_maestro.csv"):
     return ruta
 
 
+def guardar_dataset(dataset, nombre_archivo="dataset_maestro.json"):
+    ruta = Path(nombre_archivo)
+    if ruta.suffix.lower() == ".csv":
+        return guardar_en_csv(dataset, nombre_archivo=nombre_archivo)
+    return guardar_en_json(dataset, nombre_archivo=nombre_archivo)
+
+
 def construir_dataset_maestro(
     simbolos=None,
     years=5,
@@ -342,7 +367,7 @@ def construir_dataset_maestro(
     timeout=15,
     pausa_segundos=0.35,
     guardar_csv=True,
-    nombre_archivo="dataset_maestro.csv",
+    nombre_archivo="dataset_maestro.json",
     min_activos=20,
     min_years=5,
     strict_minimo=False,
@@ -413,10 +438,10 @@ def construir_dataset_maestro(
     )
 
     if guardar_csv:
-        ruta = guardar_en_csv(dataset, nombre_archivo=nombre_archivo)
+        ruta = guardar_dataset(dataset, nombre_archivo=nombre_archivo)
         reporte["archivo"] = str(ruta)
         nombre_base = Path(nombre_archivo).stem
-        guardar_reporte_json(reporte, nombre_base)
+        guardar_reporte_json(reporte, nombre_base, directorio=ruta.parent if ruta else None)
 
     if errores_validacion:
         LOGGER.error("ETL | validacion | no cumple minimo | %s", " ; ".join(errores_validacion))

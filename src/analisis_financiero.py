@@ -1,3 +1,4 @@
+import json
 import csv
 import math
 from pathlib import Path
@@ -12,6 +13,18 @@ def cargar_dataset(ruta_archivo):
     ruta = Path(ruta_archivo)
     if not ruta.is_absolute():
         ruta = BASE_DIR / ruta
+    if ruta.suffix.lower() == ".json":
+        with ruta.open(mode="r", encoding="utf-8") as archivo:
+            contenido = json.load(archivo)
+        if isinstance(contenido, list):
+            return contenido
+        if isinstance(contenido, dict):
+            for clave in ("dataset", "rows", "data", "items"):
+                valor = contenido.get(clave)
+                if isinstance(valor, list):
+                    return valor
+        raise ValueError(f"Formato JSON invalido para {ruta.name}")
+
     dataset = []
     with ruta.open(mode="r", encoding="utf-8") as archivo:
         lector = csv.DictReader(archivo)
