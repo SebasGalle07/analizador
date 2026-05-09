@@ -6,6 +6,7 @@ const state = {
   patternDocs: null,
   activeModule: "etl",
   statusTimer: null,
+  datasetVersion: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -79,9 +80,10 @@ function formatPct(value, digits = 2) {
   return `${formatNumber(Number(value) * 100, digits)}%`;
 }
 
-function cacheBust(url) {
+function cacheBust(url, version) {
   const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}t=${Date.now()}`;
+  const token = version || Date.now();
+  return `${url}${sep}v=${encodeURIComponent(token)}`;
 }
 
 function sleep(ms) {
@@ -131,6 +133,7 @@ function activateModule(moduleName, { scroll = true } = {}) {
 
 function renderOverview(overview) {
   state.overview = overview;
+  state.datasetVersion = overview.dataset_version || null;
   if (has("#dataset-name")) $("#dataset-name").textContent = overview.source_file;
   if (has("#dataset-range")) $("#dataset-range").textContent = `${overview.date_min} / ${overview.date_max}`;
   if (has("#dataset-rows")) $("#dataset-rows").textContent = new Intl.NumberFormat("es-CO").format(overview.rows);
@@ -439,8 +442,8 @@ async function refreshSimilarity() {
   });
   renderSimilarity(data);
   const q = `symbol_a=${encodeURIComponent(symbolA)}&symbol_b=${encodeURIComponent(symbolB)}`;
-  if (has("#series-plot")) $("#series-plot").src = cacheBust(`/plot/series.png?${q}`);
-  if (has("#returns-plot")) $("#returns-plot").src = cacheBust(`/plot/returns.png?${q}`);
+  if (has("#series-plot")) $("#series-plot").src = cacheBust(`/plot/series.png?${q}`, state.datasetVersion);
+  if (has("#returns-plot")) $("#returns-plot").src = cacheBust(`/plot/returns.png?${q}`, state.datasetVersion);
   if (has("#download-report")) $("#download-report").href = `/report.pdf?${q}`;
 }
 
@@ -450,14 +453,15 @@ async function refreshCandlestick() {
   const shortWindow = has("#short-window") ? $("#short-window").value : 20;
   const longWindow = has("#long-window") ? $("#long-window").value : 50;
   $("#candlestick-plot").src = cacheBust(
-    `/plot/candlestick.png?symbol=${encodeURIComponent(symbol)}&short_window=${shortWindow}&long_window=${longWindow}`
+    `/plot/candlestick.png?symbol=${encodeURIComponent(symbol)}&short_window=${shortWindow}&long_window=${longWindow}`,
+    state.datasetVersion
   );
 }
 
 async function refreshRisk() {
   const data = await fetchJson("/risk");
   renderRisk(data.items);
-  if (has("#risk-plot")) $("#risk-plot").src = cacheBust("/plot/risk.png");
+  if (has("#risk-plot")) $("#risk-plot").src = cacheBust("/plot/risk.png", state.datasetVersion);
 }
 
 async function refreshPatterns() {
@@ -472,7 +476,7 @@ async function refreshPatterns() {
 }
 
 async function refreshCorrelation() {
-  if (has("#correlation-plot")) $("#correlation-plot").src = cacheBust("/plot/correlation.png");
+  if (has("#correlation-plot")) $("#correlation-plot").src = cacheBust("/plot/correlation.png", state.datasetVersion);
   const data = await fetchJson("/correlation");
   renderCorrelationTable(data);
 }
@@ -553,7 +557,7 @@ if (has("#refresh-overview")) {
         "ETL | leyendo reporte y vista previa",
       ], 700);
       setEtlLoading(true, "Actualizando ETL", "Sincronizando reporte y vista previa...");
-      await sleep(3000);
+      await sleep(180);
       await loadOverview();
       if (PAGE === "dashboard") await runDashboard();
       stopStatusSequence();

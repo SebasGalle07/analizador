@@ -31,6 +31,10 @@ from src.paths import get_runtime_processed_dir
 
 
 RUNTIME_PROCESSED_DIR = get_runtime_processed_dir()
+DATASET_CACHE = {}
+JSON_CACHE = {}
+PNG_CACHE = {}
+MAX_CACHE_ENTRIES = 32
 DATASET_CANDIDATES = (
     RUNTIME_PROCESSED_DIR / "dataset_maestro.json",
     RUNTIME_PROCESSED_DIR / "dataset_maestro.csv",
@@ -55,6 +59,47 @@ def _json_error(message, status_code=400):
     response = jsonify({"detail": message})
     response.status_code = status_code
     return response
+
+
+def _cache_get(cache, key):
+    return cache.get(key)
+
+
+def _cache_set(cache, key, value):
+    if key in cache:
+        cache[key] = value
+        return value
+    if len(cache) >= MAX_CACHE_ENTRIES:
+        cache.pop(next(iter(cache)))
+    cache[key] = value
+    return value
+
+
+def _trim_similarity_payload(comparacion):
+    # Keep API responses light; full images are served by plotting endpoints.
+    comparacion["prices"]["dates"] = comparacion["prices"]["dates"][-250:]
+    simbolo_a, simbolo_b = comparacion["symbols"]
+    comparacion["prices"][simbolo_a] = comparacion["prices"][simbolo_a][-250:]
+    comparacion["prices"][simbolo_b] = comparacion["prices"][simbolo_b][-250:]
+    comparacion["returns"]["dates"] = comparacion["returns"]["dates"][-250:]
+    comparacion["returns"][simbolo_a] = comparacion["returns"][simbolo_a][-250:]
+    comparacion["returns"][simbolo_b] = comparacion["returns"][simbolo_b][-250:]
+    return comparacion
+
+
+def _dataset_fingerprint(path):
+    stat = path.stat()
+    return f"{path.resolve()}|{stat.st_mtime_ns}|{stat.st_size}"
+
+
+def _load_dataset_cached(path):
+    fingerprint = _dataset_fingerprint(path)
+    cached = _cache_get(DATASET_CACHE, fingerprint)
+    if cached is not None:
+        return cached, fingerprint
+    dataset = cargar_dataset(path)
+    _cache_set(DATASET_CACHE, fingerprint, dataset)
+    return dataset, fingerprint
 
 
 def _expand_dataset_candidates(path):
@@ -96,18 +141,21 @@ def load_dataset_or_error():
     if not dataset_path:
         return None, None, _json_error("No se encontro el dataset maestro. Reconstruya el dataset.", 404)
     try:
-        dataset = cargar_dataset(dataset_path)
+        dataset, _ = _load_dataset_cached(dataset_path)
         return dataset, dataset_path, None
     except Exception as error:
         return None, None, _json_error(f"No se pudo cargar el dataset: {error}", 500)
 
 
 def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
+    stat = dataset_path.stat()
+    version = f"{stat.st_mtime_ns}-{stat.st_size}"
     simbolos = extraer_simbolos(dataset)
     fechas = [fila["Fecha"] for fila in dataset if fila.get("Fecha")]
     payload = {
         "source_file": dataset_path.name,
         "source_path": str(dataset_path),
+        "dataset_version": version,
         "rows": len(dataset),
         "columns": len(dataset[0]) if dataset else 0,
         "symbols": simbolos,
@@ -185,6 +233,29 @@ def dataset_overview():
     return jsonify(dataset_overview_payload(dataset, dataset_path))
 
 
+def _json_response_cache(key, builder):
+    cached = _cache_get(JSON_CACHE, key)
+    if cached is not None:
+        return jsonify(cached)
+    data = builder()
+    _cache_set(JSON_CACHE, key, data)
+    return jsonify(data)
+
+
+def _png_response_cache(key, builder, download_name):
+    cached = _cache_get(PNG_CACHE, key)
+    if cached is None:
+        cached = builder()
+        _cache_set(PNG_CACHE, key, cached)
+    response = send_file(
+        __import__("io").BytesIO(cached),
+        mimetype="image/png",
+        download_name=download_name,
+    )
+    response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return response
+
+
 @app.post("/dataset/build")
 def build_dataset():
     payload = request.get_json(silent=True) or {}
@@ -228,6 +299,10 @@ def build_dataset():
         app.logger.error("API | ETL fallido | no se construyo dataset")
         return _json_error("No se pudo construir el dataset.", 502)
 
+    DATASET_CACHE.clear()
+    JSON_CACHE.clear()
+    PNG_CACHE.clear()
+
     resumen = reporte.get("validacion", {})
     app.logger.info(
         "API | ETL completado | activos=%s | filas=%s | rango=%s..%s",
@@ -241,7 +316,7 @@ def build_dataset():
 
 @app.post("/similarity")
 def similarity():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
     payload = request.get_json(silent=True) or {}
@@ -258,28 +333,26 @@ def similarity():
         return _json_error(f"Seleccione dos activos validos. Disponibles: {', '.join(simbolos)}")
     if simbolo_a == simbolo_b:
         return _json_error("Seleccione dos activos diferentes para comparar.")
-    comparacion = comparar_activos(dataset, simbolo_a, simbolo_b, dtw_banda=dtw_banda)
-    # Keep API responses light; full images are served by plotting endpoints.
-    comparacion["prices"]["dates"] = comparacion["prices"]["dates"][-250:]
-    comparacion["prices"][simbolo_a] = comparacion["prices"][simbolo_a][-250:]
-    comparacion["prices"][simbolo_b] = comparacion["prices"][simbolo_b][-250:]
-    comparacion["returns"]["dates"] = comparacion["returns"]["dates"][-250:]
-    comparacion["returns"][simbolo_a] = comparacion["returns"][simbolo_a][-250:]
-    comparacion["returns"][simbolo_b] = comparacion["returns"][simbolo_b][-250:]
-    return jsonify(comparacion)
+    dataset_key = _dataset_fingerprint(dataset_path)
+    cache_key = ("similarity", dataset_key, simbolo_a, simbolo_b, dtw_banda)
+    return _json_response_cache(
+        cache_key,
+        lambda: _trim_similarity_payload(comparar_activos(dataset, simbolo_a, simbolo_b, dtw_banda=dtw_banda)),
+    )
 
 
 @app.get("/risk")
 def risk():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    return jsonify({"items": estadisticas_riesgo(dataset)})
+    cache_key = ("risk", _dataset_fingerprint(dataset_path))
+    return _json_response_cache(cache_key, lambda: {"items": estadisticas_riesgo(dataset)})
 
 
 @app.get("/patterns")
 def patterns():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
     simbolo = request.args.get("symbol")
@@ -295,34 +368,42 @@ def patterns():
     simbolos = extraer_simbolos(dataset)
     if simbolo not in simbolos:
         return _json_error(f"Simbolo invalido. Disponibles: {', '.join(simbolos)}")
-    precios = [item["valor"] for item in serie_campo(dataset, simbolo, "Close")]
-    retornos = retornos_desde_precios(precios)
-    return jsonify({"symbol": simbolo, "patterns": contar_patrones(retornos, k=k, umbral_rebote=threshold)})
+    dataset_key = _dataset_fingerprint(dataset_path)
+    cache_key = ("patterns", dataset_key, simbolo, k, threshold)
+    return _json_response_cache(
+        cache_key,
+        lambda: {
+            "symbol": simbolo,
+            "patterns": contar_patrones(
+                retornos_desde_precios([item["valor"] for item in serie_campo(dataset, simbolo, "Close")]),
+                k=k,
+                umbral_rebote=threshold,
+            ),
+        },
+    )
 
 
 @app.get("/correlation")
 def correlation():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    return jsonify(matriz_correlacion(dataset))
+    cache_key = ("correlation", _dataset_fingerprint(dataset_path))
+    return _json_response_cache(cache_key, lambda: matriz_correlacion(dataset))
 
 
 @app.get("/plot/correlation.png")
 def plot_correlation():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    return send_file(
-        __import__("io").BytesIO(generar_heatmap_correlacion(dataset)),
-        mimetype="image/png",
-        download_name="correlacion.png",
-    )
+    cache_key = ("plot_correlation", _dataset_fingerprint(dataset_path))
+    return _png_response_cache(cache_key, lambda: generar_heatmap_correlacion(dataset), "correlacion.png")
 
 
 @app.get("/plot/candlestick.png")
 def plot_candlestick():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
     simbolo = request.args.get("symbol")
@@ -331,15 +412,19 @@ def plot_candlestick():
     if simbolo not in extraer_simbolos(dataset):
         return _json_error("Simbolo invalido.")
     try:
-        png = generar_grafico_velas(dataset, simbolo, short_window, long_window)
+        cache_key = ("plot_candlestick", _dataset_fingerprint(dataset_path), simbolo, short_window, long_window)
+        return _png_response_cache(
+            cache_key,
+            lambda: generar_grafico_velas(dataset, simbolo, short_window, long_window),
+            f"velas_{simbolo}.png",
+        )
     except Exception as error:
         return _json_error(str(error), 500)
-    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name=f"velas_{simbolo}.png")
 
 
 @app.get("/plot/returns.png")
 def plot_returns():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
     simbolo_a = request.args.get("symbol_a")
@@ -347,30 +432,42 @@ def plot_returns():
     simbolos = extraer_simbolos(dataset)
     if simbolo_a not in simbolos or simbolo_b not in simbolos:
         return _json_error("Simbolos invalidos.")
-    png = generar_grafico_retornos(comparar_activos(dataset, simbolo_a, simbolo_b))
-    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name="retornos.png")
+    cache_key = ("plot_returns", _dataset_fingerprint(dataset_path), simbolo_a, simbolo_b)
+    return _png_response_cache(
+        cache_key,
+        lambda: generar_grafico_retornos(comparar_activos(dataset, simbolo_a, simbolo_b)),
+        "retornos.png",
+    )
 
 
 @app.get("/plot/series.png")
 def plot_series():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
     simbolo_a = request.args.get("symbol_a")
     simbolo_b = request.args.get("symbol_b")
     if simbolo_a not in extraer_simbolos(dataset) or simbolo_b not in extraer_simbolos(dataset):
         return _json_error("Simbolos invalidos.")
-    png = generar_grafico_series(comparar_activos(dataset, simbolo_a, simbolo_b))
-    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name="series.png")
+    cache_key = ("plot_series", _dataset_fingerprint(dataset_path), simbolo_a, simbolo_b)
+    return _png_response_cache(
+        cache_key,
+        lambda: generar_grafico_series(comparar_activos(dataset, simbolo_a, simbolo_b)),
+        "series.png",
+    )
 
 
 @app.get("/plot/risk.png")
 def plot_risk():
-    dataset, _, error = load_dataset_or_error()
+    dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    png = generar_barras_riesgo(estadisticas_riesgo(dataset))
-    return send_file(__import__("io").BytesIO(png), mimetype="image/png", download_name="riesgo.png")
+    cache_key = ("plot_risk", _dataset_fingerprint(dataset_path))
+    return _png_response_cache(
+        cache_key,
+        lambda: generar_barras_riesgo(estadisticas_riesgo(dataset)),
+        "riesgo.png",
+    )
 
 
 @app.get("/report.pdf")
