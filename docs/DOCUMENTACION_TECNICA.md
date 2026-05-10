@@ -265,6 +265,9 @@ Los directorios de datos y reportes pueden configurarse con variables de entorno
 
 Si no estan definidas, el proyecto usa `data/processed/` y `reports/` en local. Si el entorno no permite escritura, cae a directorios temporales para evitar que la aplicacion se rompa.
 
+El servidor web escucha por defecto en `0.0.0.0` y toma `PORT` del entorno,
+para que plataformas como Render puedan detectar el puerto expuesto.
+
 ## Ejecucion local
 
 ```powershell

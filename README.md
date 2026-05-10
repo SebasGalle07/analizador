@@ -50,6 +50,9 @@ Abrir:
 http://127.0.0.1:8000/
 ```
 
+En despliegue, la app escucha por defecto en `0.0.0.0` y usa la variable de
+entorno `PORT` cuando esta disponible.
+
 ## Reconstruir el dataset
 
 Desde consola:
