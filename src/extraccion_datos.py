@@ -53,6 +53,37 @@ GLOBAL_SYMBOLS = [
 
 DEFAULT_SYMBOLS = COLOMBIA_SYMBOLS + GLOBAL_SYMBOLS
 
+SYMBOL_NAMES = {
+    "ECOPETROL.CL": "Ecopetrol S.A.",
+    "ISA.CL": "Interconexion Electrica S.A. E.S.P.",
+    "GEB.CL": "Grupo Energia Bogota S.A. E.S.P.",
+    "GRUPOARGOS.CL": "Grupo Argos S.A.",
+    "CEMARGOS.CL": "Cementos Argos S.A.",
+    "NUTRESA.CL": "Grupo Nutresa S.A.",
+    "BVC.CL": "Bolsa de Valores de Colombia S.A.",
+    "EXITO.CL": "Grupo Exito S.A.",
+    "BOGOTA.CL": "Banco de Bogota S.A.",
+    "GRUPOSURA.CL": "Grupo Sura S.A.",
+    "EC": "Ecopetrol ADR",
+    "CIB": "Bancolombia ADR",
+    "AVAL": "Grupo Aval ADR",
+    "TGLS": "Tecnoglass Inc.",
+    "VOO": "Vanguard S&P 500 ETF",
+    "SPY": "SPDR S&P 500 ETF Trust",
+    "QQQ": "Invesco QQQ Trust",
+    "IWM": "iShares Russell 2000 ETF",
+    "EFA": "iShares MSCI EAFE ETF",
+    "EEM": "iShares MSCI Emerging Markets ETF",
+    "GLD": "SPDR Gold Shares",
+    "TLT": "iShares 20+ Year Treasury Bond ETF",
+    "BND": "Vanguard Total Bond Market ETF",
+    "VNQ": "Vanguard Real Estate ETF",
+    "XLE": "Energy Select Sector SPDR Fund",
+    "XLK": "Technology Select Sector SPDR Fund",
+    "XLF": "Financial Select Sector SPDR Fund",
+    "DIA": "SPDR Dow Jones Industrial Average ETF Trust",
+}
+
 PRICE_FIELDS = ("Open", "High", "Low", "Close")
 ALL_FIELDS = ("Open", "High", "Low", "Close", "Volume")
 
@@ -63,6 +94,11 @@ def normalizar_simbolo(simbolo):
 
 def nombre_columna(simbolo, campo):
     return f"{normalizar_simbolo(simbolo)}_{campo}"
+
+
+def nombre_activo(simbolo):
+    simbolo = normalizar_simbolo(simbolo)
+    return SYMBOL_NAMES.get(simbolo, simbolo)
 
 
 def _safe_float(value):

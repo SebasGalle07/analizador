@@ -21,6 +21,7 @@ from src.extraccion_datos import (
     COLOMBIA_SYMBOLS,
     DEFAULT_SYMBOLS,
     GLOBAL_SYMBOLS,
+    SYMBOL_NAMES,
     construir_dataset_maestro,
 )
 from src.paths import PROJECT_ROOT, STATIC_DIR
@@ -170,6 +171,7 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
         "symbols": simbolos,
         "symbol_count": len(simbolos),
         "symbol_groups": symbol_groups,
+        "symbol_names": {simbolo: SYMBOL_NAMES.get(simbolo, simbolo) for simbolo in simbolos},
         "date_min": min(fechas) if fechas else None,
         "date_max": max(fechas) if fechas else None,
         "preview": dataset[:preview_rows],

@@ -51,7 +51,9 @@ http://127.0.0.1:8000/
 ```
 
 En despliegue, la app escucha por defecto en `0.0.0.0` y usa la variable de
-entorno `PORT` cuando esta disponible.
+entorno `PORT` cuando esta disponible. En el navegador local se abre
+`http://127.0.0.1:8000/` o `http://localhost:8000/`; `0.0.0.0` es solo la
+direccion de escucha del servidor, no una URL de navegacion.
 
 ## Reconstruir el dataset
 

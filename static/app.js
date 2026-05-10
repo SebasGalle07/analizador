@@ -80,6 +80,11 @@ function formatPct(value, digits = 2) {
   return `${formatNumber(Number(value) * 100, digits)}%`;
 }
 
+function formatAssetLabel(symbol, names = {}) {
+  const name = names[symbol];
+  return name ? `${symbol} — ${name}` : symbol;
+}
+
 function cacheBust(url, version) {
   const sep = url.includes("?") ? "&" : "?";
   const token = version || Date.now();
@@ -101,11 +106,12 @@ function fillSelect(selector, symbols, preferred, groups = null) {
   const select = $(selector);
   if (!select) return;
   select.innerHTML = "";
+  const names = state.overview?.symbol_names || {};
   const renderSymbols = (target, items) => {
     items.forEach((s) => {
       const opt = document.createElement("option");
       opt.value = s;
-      opt.textContent = s;
+      opt.textContent = formatAssetLabel(s, names);
       target.appendChild(opt);
     });
   };
@@ -156,6 +162,7 @@ function renderOverview(overview) {
 
   const groups = overview.symbol_groups || [];
   const allSymbols = overview.symbols || [];
+  const names = overview.symbol_names || {};
   const colombiaSymbols = groups[0]?.symbols || [];
   const globalSymbols = groups[1]?.symbols || [];
   const defaultColombia = colombiaSymbols[0] || allSymbols[0];
@@ -192,7 +199,7 @@ function renderOverview(overview) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "pill";
-        btn.textContent = s;
+        btn.textContent = formatAssetLabel(s, names);
         btn.addEventListener("click", () => {
           if (has("#candle-symbol")) $("#candle-symbol").value = s;
           refreshCandlestick().catch(console.warn);
