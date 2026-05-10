@@ -1,25 +1,40 @@
 # Documento tecnico
 
-## Arquitectura
+## Resumen ejecutivo
 
-La aplicacion se divide en cuatro capas:
+Este proyecto implementa un dashboard bursatil en Flask para descargar, limpiar, unificar y analizar series diarias OHLCV de activos financieros.
 
-- `src/extraccion_datos.py`: ETL reproducible con peticiones HTTP directas a Yahoo Finance.
-- `src/analisis_financiero.py`: algoritmos matematicos implementados desde cero.
-- `src/visualizacion.py`: graficas con `matplotlib`.
-- `api.py`: aplicacion web Flask y endpoints JSON/PNG/PDF.
-
-Flujo de componentes:
+El flujo real del sistema es:
 
 ```text
-Usuario web
-  -> Flask API
-    -> ETL HTTP Yahoo Finance -> JSON maestro
-    -> Analisis financiero manual -> metricas JSON
-    -> Matplotlib -> PNG/PDF
+Yahoo Finance por HTTP directo
+  -> ETL y dataset maestro
+  -> Analisis de similitud, patrones, riesgo y correlacion
+  -> Visualizaciones PNG
+  -> Reporte tecnico PDF
+  -> Exposicion web con Flask
 ```
 
-## ETL
+El dataset maestro actual en `data/processed/dataset_maestro.csv` contiene:
+
+- 1308 filas.
+- 28 activos.
+- Rango temporal de `2021-04-22` a `2026-04-30`.
+
+Ese estado cumple la cobertura minima esperada para el proyecto: mas de 20 activos y mas de 5 anos historicos.
+
+## Arquitectura
+
+La aplicacion se organiza en capas simples:
+
+- `src/extraccion_datos.py`: ETL reproducible con peticiones HTTP directas a Yahoo Finance.
+- `src/analisis_financiero.py`: metricas y algoritmos implementados desde cero.
+- `src/visualizacion.py`: graficas con `matplotlib`.
+- `src/reporte_pdf.py`: composicion del reporte PDF.
+- `src/api.py`: API Flask y endpoints.
+- `src/paths.py`: rutas configurables y directorios de ejecucion.
+
+## ETL y construccion del dataset
 
 La descarga se realiza contra:
 
@@ -27,121 +42,117 @@ La descarga se realiza contra:
 https://query2.finance.yahoo.com/v8/finance/chart/{SIMBOLO}
 ```
 
-El codigo construye manualmente `period1`, `period2`, `interval`, cabeceras HTTP,
-manejo de errores de estado, parsing JSON y escritura JSON. No se usa `yfinance`,
-`pandas_datareader`, `pandas`, `numpy` ni funciones que encapsulen la descarga.
+La rutina de ETL construye manualmente:
 
-El portafolio por defecto incluye acciones colombianas disponibles en Yahoo
-Finance (`ECOPETROL.CL`, `ISA.CL`, `GEB.CL`, `GRUPOARGOS.CL`, entre otras),
-ADRs colombianos (`EC`, `CIB`, `AVAL`, `TGLS`) y ETFs globales (`VOO`, `SPY`,
-`QQQ`, `EEM`, `GLD`, `TLT`, etc.). El dataset resultante supera los 20 activos
-y cubre minimo cinco anos si la fuente publica devuelve el historial completo.
+- `period1` y `period2` como timestamps Unix.
+- `interval=1d`.
+- cabeceras HTTP.
+- reintentos ante errores de red o `429`.
+- parsing de la respuesta JSON.
+- escritura del dataset en JSON o CSV.
 
-Limpieza:
+No se usa `yfinance`, `pandas_datareader`, `pandas`, `numpy` ni una funcion que encapsule la descarga de datos en una sola llamada.
 
-- Duplicados por fecha: se conserva el ultimo registro recibido.
-- Precios nulos, negativos o cero: se descartan porque distorsionan retornos.
-- OHLC inconsistente: se descarta si `High` queda por debajo de algun precio
-  observado o `Low` por encima.
-- Fechas faltantes por calendario bursatil: se alinean con calendario union.
-  Los precios se imputan con forward fill, volumen queda en `0` y la columna
-  `*_Missing` queda en `1`.
+### Portafolio utilizado
 
-Impacto: el forward fill permite comparar activos con calendarios diferentes
-sin perder fechas, pero puede suavizar retornos en dias no negociados. Por eso
-la imputacion queda marcada y se documenta en el reporte.
+El portafolio por defecto incluye 28 activos y se divide de forma equilibrada:
 
-## Algoritmos de similitud
+- 14 activos colombianos o relacionados con el mercado local.
+- 14 activos globales o indices de referencia internacional.
 
-Todos los algoritmos estan en `src/analisis_financiero.py` y usan listas y bucles.
+Esta division ayuda a comparar el comportamiento de activos locales frente a
+instrumentos internacionales mas liquidos y utilizados como referencia.
+
+En la interfaz, los selectores y la nube de activos muestran esos dos grupos
+separados para que la comparacion visual sea inmediata.
+
+Ejemplos de la mitad colombiana:
+
+- `ECOPETROL.CL`, `ISA.CL`, `GEB.CL`, `GRUPOARGOS.CL`, `CEMARGOS.CL`, `NUTRESA.CL`,
+  `BVC.CL`, `EXITO.CL`, `BOGOTA.CL`, `GRUPOSURA.CL`, `EC`, `CIB`, `AVAL`, `TGLS`.
+
+Ejemplos de la mitad global:
+
+- `VOO`, `SPY`, `QQQ`, `IWM`, `EFA`, `EEM`, `GLD`, `TLT`, `BND`, `VNQ`, `XLE`,
+  `XLK`, `XLF`, `DIA`.
+
+### Limpieza
+
+La limpieza aplica estas reglas:
+
+- Se eliminan registros duplicados por fecha.
+- Se descartan filas con precios nulos, negativos o cero.
+- Se descartan filas con inconsistencia de OHLC.
+- Se unifican calendarios bursatiles con un calendario union.
+- Cuando falta una fecha para un activo, los precios se completan con forward fill, el volumen queda en `0` y la columna `*_Missing` marca imputacion.
+
+### Impacto de la imputacion
+
+El forward fill evita perder fechas al comparar activos con calendarios distintos, pero puede suavizar retornos en dias no negociados. Por eso:
+
+- la imputacion queda marcada en el dataset,
+- los calculos de similitud y riesgo trabajan sobre series alineadas,
+- el reporte tecnico explicita esta limitacion.
+
+## Similitud de series
+
+Los algoritmos estan implementados en `src/analisis_financiero.py` con listas, bucles y operaciones elementales.
 
 ### Distancia euclidiana
 
 Formula:
 
 ```text
-d(P,Q)=sqrt(sum((p_i-q_i)^2))
+d(P,Q) = sqrt(sum((p_i - q_i)^2))
 ```
 
-Se calcula sobre precios alineados y sobre retornos diarios. Recorre una vez
-los vectores.
+Uso:
+
+- compara precios alineados o retornos diarios,
+- mide separacion global entre dos vectores.
+
+Complejidad:
 
 - Tiempo: `O(n)`
 - Espacio: `O(1)`
-
-Pseudocodigo:
-
-```text
-suma <- 0
-para i desde 0 hasta n-1:
-    diferencia <- P[i] - Q[i]
-    suma <- suma + diferencia^2
-retornar sqrt(suma)
-```
 
 ### Correlacion de Pearson
 
-Formula muestral equivalente:
+Formula:
 
 ```text
-r_xy = sum((x_i-x_bar)(y_i-y_bar)) /
-       sqrt(sum((x_i-x_bar)^2) sum((y_i-y_bar)^2))
+r_xy = sum((x_i - x_bar)(y_i - y_bar)) / sqrt(sum((x_i - x_bar)^2) sum((y_i - y_bar)^2))
 ```
 
-Se aplica a retornos diarios. `r=1` indica relacion lineal perfecta, `r=0`
-ausencia de relacion lineal y `r=-1` relacion inversa perfecta.
+Uso:
+
+- se aplica a retornos diarios,
+- mide relacion lineal entre dos activos.
+
+Complejidad:
 
 - Tiempo: `O(n)`
 - Espacio: `O(1)`
-
-Pseudocodigo:
-
-```text
-media_x <- promedio(X)
-media_y <- promedio(Y)
-num <- 0
-sx <- 0
-sy <- 0
-para i desde 0 hasta n-1:
-    dx <- X[i] - media_x
-    dy <- Y[i] - media_y
-    num <- num + dx * dy
-    sx <- sx + dx^2
-    sy <- sy + dy^2
-retornar num / sqrt(sx * sy)
-```
 
 ### Dynamic Time Warping
 
 Recurrencia:
 
 ```text
-D(i,j)=|p_i-q_j|+min(D(i-1,j), D(i,j-1), D(i-1,j-1))
+D(i,j) = |p_i - q_j| + min(D(i-1,j), D(i,j-1), D(i-1,j-1))
 ```
 
-La matriz de costos permite alineaciones one-to-many y many-to-one. Despues de
-llenar la matriz se aplica backtracking desde `(n,m)` hasta `(0,0)` para
-reconstruir la ruta.
+Uso:
 
-- Tiempo: `O(n*m)`
-- Espacio: `O(n*m)`
+- compara series con desfases temporales,
+- admite alineaciones one-to-many y many-to-one.
 
-Pseudocodigo:
+En el codigo existe una variante con banda Sakoe-Chiba para reducir costo de calculo.
 
-```text
-crear matriz D de (n+1) x (m+1) con infinito
-D[0][0] <- 0
-para i desde 1 hasta n:
-    para j desde 1 hasta m:
-        costo <- abs(P[i-1] - Q[j-1])
-        D[i][j] <- costo + min(D[i-1][j], D[i][j-1], D[i-1][j-1])
-ruta <- []
-i <- n; j <- m
-mientras i > 0 y j > 0:
-    agregar (i-1, j-1) a ruta
-    mover a la celda previa con menor costo
-retornar D[n][m] y ruta invertida
-```
+Complejidad:
+
+- Sin banda: `O(n*m)`
+- Con banda: aproximadamente `O(n*w)`
 
 ### Similitud coseno
 
@@ -151,77 +162,113 @@ Formula:
 cos(P,Q) = (P dot Q) / (||P|| ||Q||)
 ```
 
-Se aplica a retornos diarios. Valores cercanos a `1` indican vectores con
-direccion similar; valores cercanos a `-1` indican direcciones opuestas.
+Uso:
+
+- se aplica a retornos diarios,
+- captura si dos series se mueven en la misma direccion.
+
+Complejidad:
 
 - Tiempo: `O(n)`
 - Espacio: `O(1)`
 
-Pseudocodigo:
-
-```text
-producto <- 0
-norma_p <- 0
-norma_q <- 0
-para i desde 0 hasta n-1:
-    producto <- producto + P[i] * Q[i]
-    norma_p <- norma_p + P[i]^2
-    norma_q <- norma_q + Q[i]^2
-retornar producto / (sqrt(norma_p) * sqrt(norma_q))
-```
-
 ## Patrones y volatilidad
 
-El algoritmo de ventanas deslizantes recorre retornos y cuenta:
+El proyecto implementa deteccion de patrones con ventana deslizante:
 
-- `k` dias consecutivos con retorno positivo.
-- `k` dias consecutivos con retorno negativo seguidos de un retorno mayor o
-  igual al umbral de rebote.
+- rachas de retornos positivos,
+- secuencias negativas seguidas de rebote,
+- periodos de baja volatilidad.
 
-Para cada activo se calcula media diaria, desviacion estandar muestral y
-volatilidad anualizada:
+### Volatilidad
+
+La volatilidad anualizada se calcula con:
 
 ```text
 sigma_anual = sigma_diaria * sqrt(252)
 ```
 
-Categorias:
+Categorias usadas:
 
-- Conservador: volatilidad anual menor a 10%.
+- Conservador: menor a 10%.
 - Moderado: entre 10% y 20%.
 - Agresivo: mayor a 20%.
+
+### Ranking de riesgo
+
+Los activos se ordenan por volatilidad anualizada de forma descendente. Ademas se calcula:
+
+- retorno anual estimado,
+- Sharpe simplificado,
+- max drawdown.
 
 ## Visualizaciones
 
 `src/visualizacion.py` genera:
 
-- Mapa de calor de correlacion Pearson entre todos los activos.
-- Grafico de velas con medias moviles simples calculadas manualmente.
-- Grafico de comparacion de precios.
-- Barras de volatilidad anualizada.
+- mapa de calor de correlacion Pearson,
+- velas japonesas con SMA,
+- comparacion de precios,
+- comparacion de retornos,
+- barras de volatilidad anualizada.
 
-Se usa `matplotlib`, que esta permitido para visualizacion basica.
+La libreria usada es `matplotlib`, que permite graficos estaticos reproducibles.
 
 ## Reporte PDF
 
-`src/reporte_pdf.py` compila:
+`src/reporte_pdf.py` compone un PDF tecnico con:
 
-- Resumen del dataset y fuente.
-- Metricas de similitud y complejidad.
-- Ranking de riesgo.
-- Grafico de precios.
-- Mapa de calor de correlacion.
+- resumen del dataset,
+- metricas de similitud,
+- ranking de riesgo,
+- grafico de precios,
+- mapa de calor de correlacion,
+- secciones de formulas y complejidad.
 
-El endpoint es:
+El endpoint principal es:
 
 ```text
 GET /report.pdf?symbol_a=VOO&symbol_b=ECOPETROL.CL
 ```
 
-## Ejecucion
+## API Flask
+
+Rutas principales:
+
+- `/ui/etl`
+- `/ui/similarity`
+- `/ui/patterns`
+- `/ui/visualization`
+- `/ui/docs`
+
+Endpoints principales:
+
+- `GET /dataset/overview`
+- `POST /dataset/build`
+- `POST /similarity`
+- `GET /risk`
+- `GET /patterns`
+- `GET /correlation`
+- `GET /plot/correlation.png`
+- `GET /plot/candlestick.png`
+- `GET /plot/returns.png`
+- `GET /plot/series.png`
+- `GET /plot/risk.png`
+- `GET /report.pdf`
+
+## Persistencia y despliegue
+
+Los directorios de datos y reportes pueden configurarse con variables de entorno:
+
+- `ANALIZADOR_DATA_DIR`
+- `ANALIZADOR_REPORTS_DIR`
+
+Si no estan definidas, el proyecto usa `data/processed/` y `reports/` en local. Si el entorno no permite escritura, cae a directorios temporales para evitar que la aplicacion se rompa.
+
+## Ejecucion local
 
 ```powershell
-cd "C:\Users\sebas\Desktop\Universidad\analisis\analizador"
+cd "d:\Repositorios_UQ\proyecto-algoritmos\analizador"
 py -3 -m pip install -r requirements.txt
 py -3 api.py
 ```
@@ -232,7 +279,7 @@ Abrir:
 http://127.0.0.1:8000/
 ```
 
-Reconstruir dataset por consola:
+Reconstruir el dataset:
 
 ```powershell
 py -3 src/extraccion_datos.py
@@ -240,20 +287,12 @@ py -3 src/extraccion_datos.py
 
 ## Uso de IA
 
-Se declara el uso de asistencia de IA generativa como apoyo para organizacion
-del codigo, documentacion y revision de implementacion. Las formulas y
-algoritmos quedan implementados explicitamente en el codigo fuente para que el
-analisis sea verificable.
+Se declara el uso de asistencia de IA generativa como apoyo para organizacion, redaccion y revision. La logica matematica y los algoritmos quedan implementados explicitamente en el codigo fuente.
 
 ## Referencias academicas
 
-- Euclidean distance: Deza, M. M. and Deza, E. (2009). Encyclopedia of
-  Distances. Springer.
-- Pearson correlation: Pearson, K. (1895). Notes on regression and inheritance
-  in the case of two parents. Proceedings of the Royal Society of London.
-- Dynamic Time Warping: Sakoe, H. and Chiba, S. (1978). Dynamic programming
-  algorithm optimization for spoken word recognition. IEEE TASSP.
-- Cosine similarity: Salton, G. and McGill, M. J. (1983). Introduction to
-  Modern Information Retrieval.
-- Volatility as standard deviation of returns: Hull, J. C. (2018). Options,
-  Futures, and Other Derivatives.
+- Deza, M. M. and Deza, E. (2009). *Encyclopedia of Distances*.
+- Pearson, K. (1895). *Notes on regression and inheritance in the case of two parents*.
+- Sakoe, H. and Chiba, S. (1978). *Dynamic programming algorithm optimization for spoken word recognition*.
+- Salton, G. and McGill, M. J. (1983). *Introduction to Modern Information Retrieval*.
+- Hull, J. C. (2018). *Options, Futures, and Other Derivatives*.

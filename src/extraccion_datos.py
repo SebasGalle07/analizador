@@ -13,11 +13,11 @@ from src.paths import PROCESSED_DIR, get_runtime_processed_dir
 BASE_DIR = get_runtime_processed_dir()
 LOGGER = logging.getLogger(__name__)
 
-# Yahoo Finance symbols queried through explicit HTTP requests. The first block
-# contains Colombian/BVC names available in Yahoo and the second block contains
-# global ETFs. If a source temporarily rejects one symbol, the ETL continues with
-# the remaining assets and reports the failure.
-DEFAULT_SYMBOLS = [
+# Yahoo Finance symbols queried through explicit HTTP requests. The portfolio is
+# intentionally balanced: half Colombian assets and half global reference assets.
+# If a source temporarily rejects one symbol, the ETL continues with the
+# remaining assets and reports the failure.
+COLOMBIA_SYMBOLS = [
     "ECOPETROL.CL",
     "ISA.CL",
     "GEB.CL",
@@ -32,6 +32,9 @@ DEFAULT_SYMBOLS = [
     "CIB",
     "AVAL",
     "TGLS",
+]
+
+GLOBAL_SYMBOLS = [
     "VOO",
     "SPY",
     "QQQ",
@@ -47,6 +50,8 @@ DEFAULT_SYMBOLS = [
     "XLF",
     "DIA",
 ]
+
+DEFAULT_SYMBOLS = COLOMBIA_SYMBOLS + GLOBAL_SYMBOLS
 
 PRICE_FIELDS = ("Open", "High", "Low", "Close")
 ALL_FIELDS = ("Open", "High", "Low", "Close", "Volume")
@@ -379,6 +384,10 @@ def construir_dataset_maestro(
         "years_solicitados": years,
         "intervalo": interval,
         "activos_solicitados": len(simbolos),
+        "portafolio": {
+            "colombia": len(COLOMBIA_SYMBOLS),
+            "global": len(GLOBAL_SYMBOLS),
+        },
         "activos": {},
         "errores": {},
         "limpieza": {},

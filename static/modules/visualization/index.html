@@ -55,7 +55,7 @@
         <p class="eyebrow">Tecnico</p>
         <h2>Velas con medias moviles</h2>
       </div>
-      <div class="form-grid">
+      <form id="controls" class="form-grid">
         <label>
           <span>Activo</span>
           <select id="candle-symbol"></select>
@@ -70,7 +70,8 @@
             <input id="long-window" type="number" min="3" max="250" value="50">
           </label>
         </div>
-      </div>
+        <button class="btn primary full" type="submit">Ejecutar analisis</button>
+      </form>
       <img id="candlestick-plot" class="chart" alt="Grafico de velas">
     </section>
 

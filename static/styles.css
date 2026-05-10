@@ -560,6 +560,19 @@ input:focus {
   gap: 8px;
 }
 
+.symbol-cloud-group + .symbol-cloud-group {
+  margin-top: 14px;
+}
+
+.symbol-cloud-label {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .pill {
   border: 1px solid #99f6e4;
   background: #f0fdfa;

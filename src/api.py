@@ -17,7 +17,12 @@ from src.analisis_financiero import (
     retornos_desde_precios,
     serie_campo,
 )
-from src.extraccion_datos import DEFAULT_SYMBOLS, construir_dataset_maestro
+from src.extraccion_datos import (
+    COLOMBIA_SYMBOLS,
+    DEFAULT_SYMBOLS,
+    GLOBAL_SYMBOLS,
+    construir_dataset_maestro,
+)
 from src.paths import PROJECT_ROOT, STATIC_DIR
 from src.reporte_pdf import generar_reporte_pdf
 from src.visualizacion import (
@@ -152,6 +157,10 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
     version = f"{stat.st_mtime_ns}-{stat.st_size}"
     simbolos = extraer_simbolos(dataset)
     fechas = [fila["Fecha"] for fila in dataset if fila.get("Fecha")]
+    symbol_groups = [
+        {"label": "Activos colombianos", "symbols": COLOMBIA_SYMBOLS},
+        {"label": "Activos globales", "symbols": GLOBAL_SYMBOLS},
+    ]
     payload = {
         "source_file": dataset_path.name,
         "source_path": str(dataset_path),
@@ -160,6 +169,7 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
         "columns": len(dataset[0]) if dataset else 0,
         "symbols": simbolos,
         "symbol_count": len(simbolos),
+        "symbol_groups": symbol_groups,
         "date_min": min(fechas) if fechas else None,
         "date_max": max(fechas) if fechas else None,
         "preview": dataset[:preview_rows],
@@ -485,7 +495,7 @@ def report_pdf():
 
 
 if __name__ == "__main__":
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
     debug = os.getenv("DEBUG", "0") == "1"
     app.run(host=host, port=port, debug=debug, use_reloader=False)

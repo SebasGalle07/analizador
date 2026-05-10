@@ -5,6 +5,15 @@ acciones colombianas, ADRs colombianos y ETFs globales. El proyecto evita
 `yfinance`, `pandas_datareader`, `pandas`, `numpy` y funciones empaquetadas de
 similitud; los algoritmos principales estan implementados con listas y bucles.
 
+El dataset maestro actual contiene 28 activos y 1308 filas, con rango historico
+de `2021-04-22` a `2026-04-30`.
+
+El portafolio se divide en 14 activos colombianos y 14 activos globales para
+comparar el movimiento local frente a referencias internacionales.
+
+En la interfaz, los selectores y la lista rapida de activos ya aparecen
+agrupados por ese criterio.
+
 ## Modulos
 
 - `src/`: codigo fuente principal del backend.
@@ -22,7 +31,8 @@ similitud; los algoritmos principales estan implementados con listas y bucles.
 - `src/reporte_pdf.py`: reporte tecnico descargable.
 - `api.py`: punto de entrada que levanta la app Flask.
 - `static/`: landing page, CSS, JavaScript y paginas modulares.
-- `docs/DOCUMENTACION_TECNICA.md`: arquitectura, formulas y complejidades.
+- `docs/DOCUMENTACION_TECNICA.md`: arquitectura, formulas, complejidades y
+  cobertura real del sistema.
 - `data/processed/`: dataset maestro JSON y reporte ETL generados.
 - `reports/`: PDFs generados por la aplicacion.
 
@@ -50,7 +60,9 @@ py -3 src/extraccion_datos.py
 
 Desde el dashboard, usar el boton `Reconstruir ETL`.
 
-El archivo generado es `data/processed/dataset_maestro.json`. Cada activo tiene columnas:
+El archivo generado por defecto es `data/processed/dataset_maestro.json`, aunque
+el repositorio tambien mantiene `data/processed/dataset_maestro.csv` como
+referencia del dataset maestro. Cada activo tiene columnas:
 
 ```text
 <SIMBOLO>_Open
@@ -61,8 +73,8 @@ El archivo generado es `data/processed/dataset_maestro.json`. Cada activo tiene 
 <SIMBOLO>_Missing
 ```
 
-Durante la migracion, la app sigue aceptando el CSV maestro legado si ya existe,
-pero los nuevos rebuilds guardan JSON por defecto.
+La app acepta ambos formatos. Si existe JSON se usa primero; si no, se carga el
+CSV maestro legado.
 
 ## Rutas web
 
@@ -83,6 +95,9 @@ pero los nuevos rebuilds guardan JSON por defecto.
 - `GET /correlation`: matriz de correlacion manual.
 - `GET /plot/correlation.png`: heatmap.
 - `GET /plot/candlestick.png?symbol=VOO`: velas con SMA.
+- `GET /plot/returns.png?symbol_a=VOO&symbol_b=SPY`: comparacion de retornos.
+- `GET /plot/series.png?symbol_a=VOO&symbol_b=SPY`: comparacion de precios.
+- `GET /plot/risk.png`: barras de volatilidad.
 - `GET /report.pdf?symbol_a=VOO&symbol_b=ECOPETROL.CL`: reporte PDF.
 
 ## Restricciones cumplidas

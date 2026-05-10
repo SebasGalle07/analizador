@@ -97,16 +97,30 @@ async function fetchJson(url, options) {
   return data;
 }
 
-function fillSelect(selector, symbols, preferred) {
+function fillSelect(selector, symbols, preferred, groups = null) {
   const select = $(selector);
   if (!select) return;
   select.innerHTML = "";
-  symbols.forEach((s) => {
-    const opt = document.createElement("option");
-    opt.value = s;
-    opt.textContent = s;
-    select.appendChild(opt);
-  });
+  const renderSymbols = (target, items) => {
+    items.forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s;
+      opt.textContent = s;
+      target.appendChild(opt);
+    });
+  };
+
+  if (Array.isArray(groups) && groups.length > 0) {
+    groups.forEach((group) => {
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = group.label || "Grupo";
+      renderSymbols(optgroup, group.symbols || []);
+      select.appendChild(optgroup);
+    });
+  } else {
+    renderSymbols(select, symbols);
+  }
+
   if (preferred && symbols.includes(preferred)) select.value = preferred;
 }
 
@@ -140,13 +154,20 @@ function renderOverview(overview) {
   if (has("#dataset-symbols")) $("#dataset-symbols").textContent = overview.symbol_count;
   renderEtlSummary(overview.etl_summary);
 
-  fillSelect("#symbol-a", overview.symbols, overview.symbols.includes("VOO") ? "VOO" : overview.symbols[0]);
-  fillSelect("#symbol-b", overview.symbols, overview.symbols.includes("ECOPETROL.CL") ? "ECOPETROL.CL" : overview.symbols[1]);
-  fillSelect("#candle-symbol", overview.symbols, overview.symbols.includes("VOO") ? "VOO" : overview.symbols[0]);
+  const groups = overview.symbol_groups || [];
+  const allSymbols = overview.symbols || [];
+  const colombiaSymbols = groups[0]?.symbols || [];
+  const globalSymbols = groups[1]?.symbols || [];
+  const defaultColombia = colombiaSymbols[0] || allSymbols[0];
+  const defaultGlobal = globalSymbols[0] || allSymbols[1] || allSymbols[0];
+
+  fillSelect("#symbol-a", allSymbols, defaultColombia, groups);
+  fillSelect("#symbol-b", allSymbols, defaultGlobal, groups);
+  fillSelect("#candle-symbol", allSymbols, defaultColombia, groups);
 
   if (has("#download-report")) {
-    const symbolA = overview.symbols[0];
-    const symbolB = overview.symbols[1] || overview.symbols[0];
+    const symbolA = defaultColombia;
+    const symbolB = defaultGlobal;
     if (symbolA && symbolB) {
       $("#download-report").href = `/report.pdf?symbol_a=${encodeURIComponent(symbolA)}&symbol_b=${encodeURIComponent(symbolB)}`;
     }
@@ -155,17 +176,33 @@ function renderOverview(overview) {
   const cloud = $("#symbol-cloud");
   if (cloud) {
     cloud.innerHTML = "";
-    overview.symbols.forEach((s) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "pill";
-      btn.textContent = s;
-      btn.addEventListener("click", () => {
-        if (has("#candle-symbol")) $("#candle-symbol").value = s;
-        refreshCandlestick().catch(console.warn);
-        refreshPatterns().catch(console.warn);
+    const symbolGroups = overview.symbol_groups || [{ label: "Activos", symbols: overview.symbols || [] }];
+    symbolGroups.forEach((group) => {
+      const groupBlock = document.createElement("section");
+      groupBlock.className = "symbol-cloud-group";
+
+      const label = document.createElement("h4");
+      label.className = "symbol-cloud-label";
+      label.textContent = group.label || "Grupo";
+      groupBlock.appendChild(label);
+
+      const pills = document.createElement("div");
+      pills.className = "symbol-cloud";
+      (group.symbols || []).forEach((s) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pill";
+        btn.textContent = s;
+        btn.addEventListener("click", () => {
+          if (has("#candle-symbol")) $("#candle-symbol").value = s;
+          refreshCandlestick().catch(console.warn);
+          refreshPatterns().catch(console.warn);
+        });
+        pills.appendChild(btn);
       });
-      cloud.appendChild(btn);
+
+      groupBlock.appendChild(pills);
+      cloud.appendChild(groupBlock);
     });
   }
 
@@ -600,6 +637,9 @@ if (PAGE === "patterns") {
   });
 }
 
+
+
+
 // ── Bootstrap ──
 
 async function bootstrap() {
@@ -634,13 +674,3 @@ async function bootstrap() {
 
 bootstrap();
 
-if (PAGE === "patterns") {
-  ["#candle-symbol", "#pattern-k", "#rebound-threshold"].forEach((selector) => {
-    const el = document.querySelector(selector);
-    if (el) {
-      el.addEventListener("change", () => {
-        refreshPatterns().catch((err) => setStatus(err.message, "error"));
-      });
-    }
-  });
-}
