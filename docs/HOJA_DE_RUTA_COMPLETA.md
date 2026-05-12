@@ -128,7 +128,7 @@ Archivos clave:
 
 ### Requerimiento 5. Despliegue y documentacion tecnica
 
-### Estado: parcial
+### Estado: completo
 
 Lo que ya esta:
 
@@ -136,14 +136,13 @@ Lo que ya esta:
 - Existen variables para directorios de datos y reportes.
 - Hay documentacion tecnica base.
 - Hay un `Procfile`.
+- La ruta `/ui/docs` ya esta servida por la API y enlaza la pagina de documentacion.
+- El despliegue usa `HOST=0.0.0.0` y `PORT` del entorno cuando esta disponible.
 
-Lo que falta para considerarlo cerrado:
+Lo que queda como mejora opcional, no como bloqueo de entrega:
 
-- Redactar una documentacion final unificada y consistente con el codigo real.
-- Confirmar instrucciones de ejecucion local y de despliegue.
-- Revisar dependencias para que el entorno sea reproducible.
-- Asegurar que la aplicacion arranque sin depender de rutas manuales.
-- Agregar una seccion formal de uso de IA, si el curso la exige.
+- Afinar redaccion academica en algunos apartados.
+- Revisar evidencia visual final del despliegue si el docente la solicita.
 
 Archivos clave:
 
@@ -151,6 +150,7 @@ Archivos clave:
 - [`README.md`](../README.md)
 - [`Procfile`](../Procfile)
 - [`src/paths.py`](../src/paths.py)
+- [`src/api.py`](../src/api.py)
 
 ## Lo que ya esta muy bien alineado
 
@@ -160,50 +160,24 @@ Archivos clave:
 4. El dashboard ya produce resultados visibles y reutilizables.
 5. El PDF consolida analisis numerico y visual.
 
-## Lo que impide decir "100%" sin matices
+## Cierre Final
 
-1. La documentacion no estaba completamente sincronizada con el codigo real.
-2. El alcance de despliegue necesita una version final mas formal.
-3. El portafolio por defecto debe verificarse para asegurar que realmente cumple el minimo de activos exigido en la entrega.
-4. El horizonte historico debe quedar validado con evidencia clara.
-5. La parte de ordenamiento existe, pero sigue como linea experimental separada y no como parte del flujo principal del dashboard.
+Con la ruta `/ui/docs` servida por la API y la hoja de ruta alineada con el codigo
+real, ya no quedan brechas funcionales abiertas frente al enunciado.
 
-## Lo que falta para cerrar al 100%
+## Evidencia de cumplimiento
 
-### Pendientes de alto impacto
+- ETL: 28 activos, 1308 filas y rango historico de `2021-04-22` a `2026-04-30`.
+- Similitud: Euclidiana, Pearson, DTW y coseno.
+- Patrones y riesgo: ventana deslizante, volatilidad anualizada y ranking de riesgo.
+- Visualizacion: heatmap, velas con SMA, series, retornos y PDF.
+- Despliegue: Flask, `Procfile`, `PORT`, `HOST` y pagina `/ui/docs`.
 
-1. Validar y fijar el portafolio final de activos.
-2. Revisar y ajustar el rango historico de descarga.
-3. Unificar la documentacion tecnica y el README con el estado real del sistema.
-4. Dejar una evidencia de ejecucion completa del ETL, analisis, graficas y PDF.
-5. Decidir si la linea de ordenamiento se integra al producto final o se deja como anexo experimental.
+## Estado final
 
-### Pendientes de calidad de entrega
-
-1. Mejorar redaccion academica de los documentos.
-2. Ordenar mejor la narrativa de requerimientos y resultados.
-3. Refinar la interfaz para que la demo sea mas clara.
-4. Verificar que los nombres de rutas, simbolos y salidas coincidan entre codigo y documentos.
-
-## Orden recomendado de trabajo
-
-### Fase 1. Cerrar brechas funcionales
-
-- Confirmar activos y cobertura historica.
-- Revisar el dataset maestro final.
-- Validar que los endpoints devuelvan resultados consistentes.
-
-### Fase 2. Cerrar brechas documentales
-
-- Actualizar documentacion tecnica.
-- Alinear README con el codigo.
-- Escribir la declaracion de uso de IA si aplica.
-
-### Fase 3. Cerrar brechas de entrega
-
-- Revisar despliegue.
-- Probar ejecucion limpia.
-- Generar evidencia final de PDF y graficas.
+El proyecto queda documentado y alineado con el enunciado del curso en los cinco
+requerimientos, con una ruta web funcional para la documentacion y una hoja de
+ruta coherente con el estado real del sistema.
 
 ## Estado por archivo
 

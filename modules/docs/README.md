@@ -19,3 +19,4 @@ Concentrar la arquitectura, formulas, instrucciones de arranque y soporte para s
 - Complejidad.
 - Instrucciones de ejecucion y despliegue.
 - Logs de consola.
+- Guia de sustentacion completa en `docs/GUIA_SUSTENTACION_PROYECTO.md`.

@@ -221,6 +221,11 @@ def page_visualization():
     return send_from_directory(STATIC_DIR / "modules" / "visualization", "index.html")
 
 
+@app.get("/ui/docs")
+def page_docs():
+    return send_from_directory(STATIC_DIR / "modules" / "docs", "index.html")
+
+
 
 @app.get("/health")
 def health():
