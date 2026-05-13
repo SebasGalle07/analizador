@@ -11,6 +11,14 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
+from src.estructuras_datos import (
+    ListaDinamica,
+    menor_de_dos,
+    obtener_valor,
+    pares_diccionario,
+    sublista,
+    ultimos_elementos,
+)
 from src.analisis_financiero import (
     ALGORITHM_DOCS,
     comparar_activos,
@@ -37,10 +45,13 @@ SOFT_BG = "#f8fafc"
 
 
 def _safe_token(value):
-    token = []
+    token = ListaDinamica()
     for ch in str(value):
-        token.append(ch if ch.isalnum() else "_")
-    cleaned = "".join(token).strip("_")
+        token.agregar(ch if ch.isalnum() else "_")
+    cleaned = ""
+    for ch in token:
+        cleaned += ch
+    cleaned = cleaned.strip("_")
     while "__" in cleaned:
         cleaned = cleaned.replace("__", "_")
     return cleaned.upper() or "X"
@@ -74,7 +85,11 @@ def _wrap_text(line, width=90):
     body = line
     if line.startswith("- "):
         prefix = "- "
-        body = line[2:]
+        body = ""
+        idx = 2
+        while idx < len(line):
+            body += line[idx]
+            idx += 1
     wrapped = textwrap.wrap(body, width=width) or [""]
     if prefix:
         wrapped[0] = prefix + wrapped[0]
@@ -97,7 +112,9 @@ def _add_text_block(fig, lines, start_y=0.87, fontsize=10, line_gap=0.027, color
 def _add_cards(fig, cards, left=LEFT, top=0.82, card_w=0.26, card_h=0.09, gap=0.03):
     ax = fig.add_axes([0, 0, 1, 1])
     ax.axis("off")
-    for idx, card in enumerate(cards):
+    idx = 0
+    while idx < len(cards):
+        card = cards[idx]
         row = idx // 3
         col = idx % 3
         x = left + col * (card_w + gap)
@@ -112,11 +129,12 @@ def _add_cards(fig, cards, left=LEFT, top=0.82, card_w=0.26, card_h=0.09, gap=0.
             linewidth=1.0,
             zorder=0,
         )
-        fig.patches.append(rect)
+        fig.add_artist(rect)
         fig.text(x + 0.015, y - 0.028, card["label"], fontsize=8, color=MUTED, weight="bold")
         fig.text(x + 0.015, y - 0.055, card["value"], fontsize=13, color=TEXT, weight="bold")
-        if card.get("detail"):
-            fig.text(x + 0.015, y - 0.076, card["detail"], fontsize=7.5, color=card.get("color", ACCENT))
+        if obtener_valor(card, "detail"):
+            fig.text(x + 0.015, y - 0.076, card["detail"], fontsize=7.5, color=obtener_valor(card, "color", ACCENT))
+        idx += 1
 
 
 def _algorithm_cards(fig, docs, start_y=0.82):
@@ -126,14 +144,14 @@ def _algorithm_cards(fig, docs, start_y=0.82):
     right = RIGHT
     width = right - left
     y = start_y
-    for name, doc in docs.items():
+    for name, doc in pares_diccionario(docs):
         display_names = {
             "euclidean": "Distancia euclidiana",
             "pearson": "Correlacion de Pearson",
             "dtw": "Dynamic Time Warping",
             "cosine": "Similitud coseno",
         }
-        label = display_names.get(name, name.replace("_", " ").title())
+        label = obtener_valor(display_names, name, name.replace("_", " ").title())
         rect = Rectangle(
             (left, y - card_h),
             width,
@@ -144,7 +162,7 @@ def _algorithm_cards(fig, docs, start_y=0.82):
             linewidth=1.0,
             zorder=0,
         )
-        fig.patches.append(rect)
+        fig.add_artist(rect)
         fig.text(left + 0.015, y - 0.028, label, fontsize=11.5, weight="bold", color=TEXT)
         fig.text(
             left + 0.015,
@@ -163,7 +181,7 @@ def _algorithm_cards(fig, docs, start_y=0.82):
             linewidth=0.8,
             zorder=0,
         )
-        fig.patches.append(formula_box)
+        fig.add_artist(formula_box)
         fig.text(
             left + 0.022,
             y - 0.079,
@@ -190,7 +208,7 @@ def _table_page(pdf, title, subtitle, headers, rows, page_no):
     table.auto_set_font_size(False)
     table.set_fontsize(8.3)
     table.scale(1.0, 1.35)
-    for (row, col), cell in table.get_celld().items():
+    for (row, col), cell in pares_diccionario(table.get_celld()):
         cell.set_edgecolor(SOFT)
         if row == 0:
             cell.set_facecolor("#dbeafe")
@@ -215,14 +233,24 @@ def _chart_page(pdf, title, subtitle, figures, page_no):
 
 
 def _parse_date_axis(fechas):
-    return [mdates.datestr2num(fecha) for fecha in fechas]
+    resultado = ListaDinamica()
+    for fecha in fechas:
+        resultado.agregar(mdates.datestr2num(fecha))
+    return resultado.a_lista()
+
+
+def _serie_con_nan(valores):
+    resultado = ListaDinamica()
+    for valor in valores:
+        resultado.agregar(valor if valor is not None else float("nan"))
+    return resultado.a_lista()
 
 
 def _price_chart(ax, comparacion, simbolo_a, simbolo_b):
-    fechas = comparacion["prices"]["dates"][-500:]
+    fechas = ultimos_elementos(comparacion["prices"]["dates"], 500)
     x = _parse_date_axis(fechas)
-    ax.plot(x, comparacion["prices"][simbolo_a][-500:], label=simbolo_a, color=ACCENT)
-    ax.plot(x, comparacion["prices"][simbolo_b][-500:], label=simbolo_b, color=ACCENT_2)
+    ax.plot(x, ultimos_elementos(comparacion["prices"][simbolo_a], 500), label=simbolo_a, color=ACCENT)
+    ax.plot(x, ultimos_elementos(comparacion["prices"][simbolo_b], 500), label=simbolo_b, color=ACCENT_2)
     ax.set_title("Precios de cierre alineados", loc="left", fontsize=13, weight="bold", color=TEXT)
     ax.set_ylabel("Precio")
     ax.xaxis_date()
@@ -232,20 +260,28 @@ def _price_chart(ax, comparacion, simbolo_a, simbolo_b):
 
 
 def _candle_chart(ax, dataset, simbolo_a):
-    candle_serie = serie_ohlcv(dataset, simbolo_a)[-180:]
+    candle_serie = ultimos_elementos(serie_ohlcv(dataset, simbolo_a), 180)
     if not candle_serie:
         ax.text(0.5, 0.5, "No hay datos suficientes para velas.", ha="center", va="center", color=MUTED)
         ax.axis("off")
         return
-    fechas_c = [mdates.datestr2num(item["fecha"]) for item in candle_serie]
-    cierres_c = [item["close"] for item in candle_serie]
+    fechas_tmp = ListaDinamica()
+    cierres_tmp = ListaDinamica()
+    for item in candle_serie:
+        fechas_tmp.agregar(mdates.datestr2num(item["fecha"]))
+        cierres_tmp.agregar(item["close"])
+    fechas_c = fechas_tmp.a_lista()
+    cierres_c = cierres_tmp.a_lista()
     sma20 = media_movil_simple(cierres_c, 20)
     sma50 = media_movil_simple(cierres_c, 50)
     width = 0.65
-    for x, item in zip(fechas_c, candle_serie):
+    i = 0
+    while i < len(candle_serie):
+        x = fechas_c[i]
+        item = candle_serie[i]
         color = "#147a50" if item["close"] >= item["open"] else "#b42318"
         ax.vlines(x, item["low"], item["high"], color=color, linewidth=0.9)
-        lower = min(item["open"], item["close"])
+        lower = menor_de_dos(item["open"], item["close"])
         height = abs(item["close"] - item["open"]) or 0.0001
         ax.add_patch(
             Rectangle(
@@ -257,8 +293,9 @@ def _candle_chart(ax, dataset, simbolo_a):
                 alpha=0.85,
             )
         )
-    ax.plot(fechas_c, [v if v is not None else float("nan") for v in sma20], color=ACCENT, linewidth=1.2, label="SMA 20")
-    ax.plot(fechas_c, [v if v is not None else float("nan") for v in sma50], color="#d97706", linewidth=1.2, label="SMA 50")
+        i += 1
+    ax.plot(fechas_c, _serie_con_nan(sma20), color=ACCENT, linewidth=1.2, label="SMA 20")
+    ax.plot(fechas_c, _serie_con_nan(sma50), color="#d97706", linewidth=1.2, label="SMA 50")
     ax.set_title(f"Velas con medias moviles - {simbolo_a}", loc="left", fontsize=13, weight="bold", color=TEXT)
     ax.set_ylabel("Precio")
     ax.xaxis_date()
@@ -272,14 +309,15 @@ def _heatmap_chart(ax, correlacion):
     matrix = correlacion["matrix"]
     n = len(symbols)
 
-    masked = []
+    masked = ListaDinamica(n)
     for i in range(n):
-        row = []
+        row = ListaDinamica(n)
         for j in range(n):
-            row.append(float("nan") if j > i else matrix[i][j])
-        masked.append(row)
+            row.agregar(float("nan") if j > i else matrix[i][j])
+        masked.agregar(row.a_lista())
+    masked = masked.a_lista()
 
-    cmap = plt.cm.coolwarm.copy()
+    cmap = plt.get_cmap("coolwarm")
     cmap.set_bad(color="#f1f5f9")
     im = ax.imshow(masked, cmap=cmap, vmin=-1, vmax=1, aspect="auto")
 
@@ -386,9 +424,9 @@ def generar_reporte_pdf(dataset, simbolo_a, simbolo_b, ruta_salida=None):
         pdf.savefig(metrics)
         plt.close(metrics)
 
-        risk_rows = []
-        for item in riesgos[:15]:
-            risk_rows.append(
+        risk_rows_tmp = ListaDinamica()
+        for item in sublista(riesgos, 0, 15):
+            risk_rows_tmp.agregar(
                 [
                     item["symbol"],
                     f"{item['annual_volatility'] * 100:.2f}%",
@@ -397,6 +435,7 @@ def generar_reporte_pdf(dataset, simbolo_a, simbolo_b, ruta_salida=None):
                     item["risk_category"],
                 ]
             )
+        risk_rows = risk_rows_tmp.a_lista()
         _table_page(
             pdf,
             "Ranking de riesgo por volatilidad",

@@ -3,6 +3,21 @@ import csv
 import math
 from pathlib import Path
 
+from src.estructuras_datos import (
+    ConjuntoManual,
+    ListaDinamica,
+    TablaHashSimple,
+    claves_diccionario,
+    crear_matriz,
+    mayor_de_dos,
+    mayor_de_tres,
+    menor_de_dos,
+    menor_de_tres,
+    obtener_valor,
+    ordenar_por_seleccion,
+    sumatoria,
+    ultimos_elementos,
+)
 from src.paths import PROJECT_ROOT
 
 
@@ -17,30 +32,46 @@ def cargar_dataset(ruta_archivo):
         with ruta.open(mode="r", encoding="utf-8") as archivo:
             contenido = json.load(archivo)
         if isinstance(contenido, list):
-            return contenido
+            datos = ListaDinamica()
+            for fila in contenido:
+                datos.agregar(fila)
+            return datos.a_lista()
         if isinstance(contenido, dict):
             for clave in ("dataset", "rows", "data", "items"):
-                valor = contenido.get(clave)
+                valor = obtener_valor(contenido, clave)
                 if isinstance(valor, list):
-                    return valor
+                    datos = ListaDinamica()
+                    for fila in valor:
+                        datos.agregar(fila)
+                    return datos.a_lista()
         raise ValueError(f"Formato JSON invalido para {ruta.name}")
 
-    dataset = []
+    dataset = ListaDinamica()
     with ruta.open(mode="r", encoding="utf-8") as archivo:
         lector = csv.DictReader(archivo)
         for fila in lector:
-            dataset.append(fila)
-    return dataset
+            dataset.agregar(fila)
+    return dataset.a_lista()
 
 
 def extraer_simbolos(dataset):
     if not dataset:
         return []
-    simbolos = set()
-    for columna in dataset[0].keys():
+    simbolos = ConjuntoManual()
+    for columna in claves_diccionario(dataset[0]):
         if columna.endswith("_Close"):
-            simbolos.add(columna[:-6])
-    return sorted(simbolos)
+            simbolos.agregar(_quitar_sufijo_close(columna))
+    return ordenar_por_seleccion(simbolos.a_lista(), lambda a, b: a < b)
+
+
+def _quitar_sufijo_close(columna):
+    limite = len(columna) - 6
+    simbolo = ""
+    i = 0
+    while i < limite:
+        simbolo += columna[i]
+        i += 1
+    return simbolo
 
 
 def _to_float(value):
@@ -60,77 +91,81 @@ def _col(simbolo, campo):
 
 
 def serie_campo(dataset, simbolo, campo="Close"):
-    serie = []
+    serie = ListaDinamica()
     columna = _col(simbolo, campo)
     for fila in dataset:
-        valor = _to_float(fila.get(columna))
+        valor = _to_float(obtener_valor(fila, columna))
         if valor is not None:
-            serie.append({"fecha": fila.get("Fecha"), "valor": valor})
-    return serie
+            serie.agregar({"fecha": obtener_valor(fila, "Fecha"), "valor": valor})
+    return serie.a_lista()
 
 
 def serie_ohlcv(dataset, simbolo):
-    serie = []
+    serie = ListaDinamica()
     for fila in dataset:
-        close_value = _to_float(fila.get(_col(simbolo, "Close")))
+        close_value = _to_float(obtener_valor(fila, _col(simbolo, "Close")))
         if close_value is None:
             continue
-        open_value = _to_float(fila.get(_col(simbolo, "Open"))) or close_value
-        high_value = _to_float(fila.get(_col(simbolo, "High"))) or max(open_value, close_value)
-        low_value = _to_float(fila.get(_col(simbolo, "Low"))) or min(open_value, close_value)
-        volume_value = _to_float(fila.get(_col(simbolo, "Volume"))) or 0.0
-        serie.append(
+        open_value = _to_float(obtener_valor(fila, _col(simbolo, "Open"))) or close_value
+        high_value = _to_float(obtener_valor(fila, _col(simbolo, "High"))) or mayor_de_dos(open_value, close_value)
+        low_value = _to_float(obtener_valor(fila, _col(simbolo, "Low"))) or menor_de_dos(open_value, close_value)
+        volume_value = _to_float(obtener_valor(fila, _col(simbolo, "Volume"))) or 0.0
+        serie.agregar(
             {
-                "fecha": fila.get("Fecha"),
+                "fecha": obtener_valor(fila, "Fecha"),
                 "open": open_value,
-                "high": max(high_value, open_value, close_value),
-                "low": min(low_value, open_value, close_value),
+                "high": mayor_de_tres(high_value, open_value, close_value),
+                "low": menor_de_tres(low_value, open_value, close_value),
                 "close": close_value,
                 "volume": volume_value,
             }
         )
-    return serie
+    return serie.a_lista()
 
 
 def alinear_series(dataset, simbolo_a, simbolo_b, campo="Close"):
     col_a = _col(simbolo_a, campo)
     col_b = _col(simbolo_b, campo)
-    fechas, a, b = [], [], []
+    fechas = ListaDinamica()
+    a = ListaDinamica()
+    b = ListaDinamica()
     for fila in dataset:
-        valor_a = _to_float(fila.get(col_a))
-        valor_b = _to_float(fila.get(col_b))
+        valor_a = _to_float(obtener_valor(fila, col_a))
+        valor_b = _to_float(obtener_valor(fila, col_b))
         if valor_a is not None and valor_b is not None:
-            fechas.append(fila.get("Fecha"))
-            a.append(valor_a)
-            b.append(valor_b)
-    return fechas, a, b
+            fechas.agregar(obtener_valor(fila, "Fecha"))
+            a.agregar(valor_a)
+            b.agregar(valor_b)
+    return fechas.a_lista(), a.a_lista(), b.a_lista()
 
 
 def retornos_desde_precios(precios):
-    retornos = []
+    retornos = ListaDinamica()
     for i in range(1, len(precios)):
         anterior = precios[i - 1]
         actual = precios[i]
         if anterior is None or actual is None or anterior == 0:
             continue
-        retornos.append((actual - anterior) / anterior)
-    return retornos
+        retornos.agregar((actual - anterior) / anterior)
+    return retornos.a_lista()
 
 
 def alinear_retornos(dataset, simbolo_a, simbolo_b):
     fechas, precios_a, precios_b = alinear_series(dataset, simbolo_a, simbolo_b, "Close")
-    fechas_retorno, ret_a, ret_b = [], [], []
+    fechas_retorno = ListaDinamica()
+    ret_a = ListaDinamica()
+    ret_b = ListaDinamica()
     for i in range(1, len(fechas)):
         if precios_a[i - 1] == 0 or precios_b[i - 1] == 0:
             continue
-        fechas_retorno.append(fechas[i])
-        ret_a.append((precios_a[i] - precios_a[i - 1]) / precios_a[i - 1])
-        ret_b.append((precios_b[i] - precios_b[i - 1]) / precios_b[i - 1])
-    return fechas_retorno, ret_a, ret_b
+        fechas_retorno.agregar(fechas[i])
+        ret_a.agregar((precios_a[i] - precios_a[i - 1]) / precios_a[i - 1])
+        ret_b.agregar((precios_b[i] - precios_b[i - 1]) / precios_b[i - 1])
+    return fechas_retorno.a_lista(), ret_a.a_lista(), ret_b.a_lista()
 
 
 def distancia_euclidiana(vector_a, vector_b):
-    n = min(len(vector_a), len(vector_b))
+    n = menor_de_dos(len(vector_a), len(vector_b))
     suma = 0.0
     for i in range(n):
         diferencia = vector_a[i] - vector_b[i]
@@ -141,7 +176,18 @@ def distancia_euclidiana(vector_a, vector_b):
 def media(vector):
     if not vector:
         return 0.0
-    return sum(vector) / len(vector)
+    return sumatoria(vector) / len(vector)
+
+
+def media_hasta(vector, limite):
+    if limite <= 0:
+        return 0.0
+    suma = 0.0
+    i = 0
+    while i < limite:
+        suma += vector[i]
+        i += 1
+    return suma / limite
 
 
 def desviacion_estandar_muestral(vector):
@@ -160,25 +206,30 @@ def normalizar_zscore(vector):
     """Estandariza: z_i = (x_i - mu) / sigma. Permite comparar series en escalas distintas."""
     m = media(vector)
     s = desviacion_estandar_muestral(vector)
+    resultado = ListaDinamica(len(vector) if len(vector) > 0 else 1)
     if s == 0:
-        return [0.0] * len(vector)
-    return [(x - m) / s for x in vector]
+        i = 0
+        while i < len(vector):
+            resultado.agregar(0.0)
+            i += 1
+        return resultado.a_lista()
+    for x in vector:
+        resultado.agregar((x - m) / s)
+    return resultado.a_lista()
 
 
 def correlacion_pearson(vector_a, vector_b):
-    n = min(len(vector_a), len(vector_b))
+    n = menor_de_dos(len(vector_a), len(vector_b))
     if n < 2:
         return 0.0
-    a = vector_a[:n]
-    b = vector_b[:n]
-    media_a = media(a)
-    media_b = media(b)
+    media_a = media_hasta(vector_a, n)
+    media_b = media_hasta(vector_b, n)
     covarianza = 0.0
     suma_a = 0.0
     suma_b = 0.0
     for i in range(n):
-        da = a[i] - media_a
-        db = b[i] - media_b
+        da = vector_a[i] - media_a
+        db = vector_b[i] - media_b
         covarianza += da * db
         suma_a += da * da
         suma_b += db * db
@@ -189,7 +240,7 @@ def correlacion_pearson(vector_a, vector_b):
 
 
 def similitud_coseno(vector_a, vector_b):
-    n = min(len(vector_a), len(vector_b))
+    n = menor_de_dos(len(vector_a), len(vector_b))
     producto = 0.0
     norma_a = 0.0
     norma_b = 0.0
@@ -212,46 +263,53 @@ def distancia_dtw(vector_a, vector_b, banda=None):
     # Banda Sakoe-Chiba: solo calcula celdas donde |i-j| <= w.
     # Sin banda (None) se usa la matriz completa -> O(n*m).
     # Con banda w -> O(n*w), aceleracion proporcional al ancho de banda.
-    w = banda if banda is not None else max(n, m)
+    w = banda if banda is not None else mayor_de_dos(n, m)
     infinito = float("inf")
-    matriz = [[infinito] * (m + 1) for _ in range(n + 1)]
+    matriz = crear_matriz(n + 1, m + 1, infinito)
     matriz[0][0] = 0.0
 
     for i in range(1, n + 1):
-        j_inicio = max(1, i - w)
-        j_fin = min(m, i + w) + 1
+        j_inicio = mayor_de_dos(1, i - w)
+        j_fin = menor_de_dos(m, i + w) + 1
         for j in range(j_inicio, j_fin):
             costo = abs(vector_a[i - 1] - vector_b[j - 1])
-            matriz[i][j] = costo + min(
+            matriz[i][j] = costo + menor_de_tres(
                 matriz[i - 1][j],
                 matriz[i][j - 1],
                 matriz[i - 1][j - 1],
             )
 
     i, j = n, m
-    ruta = []
+    ruta = ListaDinamica()
     while i > 0 and j > 0:
-        ruta.append([i - 1, j - 1])
-        opciones = [
-            (matriz[i - 1][j - 1], i - 1, j - 1),
-            (matriz[i - 1][j], i - 1, j),
-            (matriz[i][j - 1], i, j - 1),
-        ]
-        _, i, j = min(opciones, key=lambda item: item[0])
+        ruta.agregar([i - 1, j - 1])
+        mejor_costo = matriz[i - 1][j - 1]
+        mejor_i = i - 1
+        mejor_j = j - 1
+        if matriz[i - 1][j] < mejor_costo:
+            mejor_costo = matriz[i - 1][j]
+            mejor_i = i - 1
+            mejor_j = j
+        if matriz[i][j - 1] < mejor_costo:
+            mejor_i = i
+            mejor_j = j - 1
+        i = mejor_i
+        j = mejor_j
 
     while i > 0:
-        ruta.append([i - 1, 0])
+        ruta.agregar([i - 1, 0])
         i -= 1
     while j > 0:
-        ruta.append([0, j - 1])
+        ruta.agregar([0, j - 1])
         j -= 1
-    ruta.reverse()
+    ruta.invertir_en_sitio()
+    ruta_final = ruta.a_lista()
 
     return {
         "distance": matriz[n][m],
-        "path": ruta,
+        "path": ruta_final,
         "matrix_shape": [n, m],
-        "path_length": len(ruta),
+        "path_length": len(ruta_final),
         "banda": banda,
     }
 
@@ -286,7 +344,7 @@ def comparar_activos(dataset, simbolo_a, simbolo_b, dtw_banda=100):
             "dtw_returns": dtw_full["distance"],
             "dtw_returns_band": dtw_band["distance"],
             "dtw_band_width": dtw_banda,
-            "dtw_path_length": dtw_full.get("path_length", 0),
+            "dtw_path_length": obtener_valor(dtw_full, "path_length", 0),
             "cosine_returns": similitud_coseno(ret_a, ret_b),
         },
     }
@@ -294,18 +352,21 @@ def comparar_activos(dataset, simbolo_a, simbolo_b, dtw_banda=100):
 
 def media_movil_simple(valores, ventana):
     # Index-based sliding window: O(n) time, O(1) extra space.
-    # Avoids list.pop(0) which is O(n) and would make the overall loop O(n^2).
-    resultado = []
+    # Evita desplazamientos completos de la ventana en cada iteracion.
+    resultado = ListaDinamica(len(valores) if len(valores) > 0 else 1)
     suma = 0.0
-    for i, valor in enumerate(valores):
+    i = 0
+    while i < len(valores):
+        valor = valores[i]
         suma += valor
         if i >= ventana:
             suma -= valores[i - ventana]
         if i >= ventana - 1:
-            resultado.append(suma / ventana)
+            resultado.agregar(suma / ventana)
         else:
-            resultado.append(None)
-    return resultado
+            resultado.agregar(None)
+        i += 1
+    return resultado.a_lista()
 
 
 def max_drawdown(precios):
@@ -366,9 +427,12 @@ def contar_patrones(retornos, k=3, umbral_rebote=0.03):
 
 
 def estadisticas_riesgo(dataset):
-    resultados = []
+    resultados = ListaDinamica()
     for simbolo in extraer_simbolos(dataset):
-        precios = [item["valor"] for item in serie_campo(dataset, simbolo, "Close")]
+        precios_tmp = ListaDinamica()
+        for item in serie_campo(dataset, simbolo, "Close"):
+            precios_tmp.agregar(item["valor"])
+        precios = precios_tmp.a_lista()
         retornos = retornos_desde_precios(precios)
         media_diaria = media(retornos)
         desviacion_diaria = desviacion_estandar_muestral(retornos)
@@ -383,7 +447,7 @@ def estadisticas_riesgo(dataset):
         # Sharpe simplificado (sin tasa libre de riesgo): retorno_anual / volatilidad_anual
         sharpe_ratio = annual_return / volatilidad_anual if volatilidad_anual > 0 else 0.0
         drawdown = max_drawdown(precios)
-        resultados.append(
+        resultados.agregar(
             {
                 "symbol": simbolo,
                 "mean_daily_return": media_diaria,
@@ -396,6 +460,7 @@ def estadisticas_riesgo(dataset):
                 "observations": len(retornos),
             }
         )
+    resultados = resultados.a_lista()
     n = len(resultados)
     for i in range(n - 1):
         max_idx = i
@@ -410,29 +475,34 @@ def estadisticas_riesgo(dataset):
 
 def matriz_correlacion(dataset):
     simbolos = extraer_simbolos(dataset)
-    retornos_por_simbolo = {}
+    retornos_por_simbolo = TablaHashSimple()
     min_len = None
     for simbolo in simbolos:
-        precios = [item["valor"] for item in serie_campo(dataset, simbolo, "Close")]
+        precios_tmp = ListaDinamica()
+        for item in serie_campo(dataset, simbolo, "Close"):
+            precios_tmp.agregar(item["valor"])
+        precios = precios_tmp.a_lista()
         retornos = retornos_desde_precios(precios)
-        retornos_por_simbolo[simbolo] = retornos
-        min_len = len(retornos) if min_len is None else min(min_len, len(retornos))
+        retornos_por_simbolo.poner(simbolo, retornos)
+        min_len = len(retornos) if min_len is None else menor_de_dos(min_len, len(retornos))
 
     if min_len is None:
         min_len = 0
 
-    matriz = []
+    matriz = ListaDinamica()
     for simbolo_i in simbolos:
-        fila = []
+        fila = ListaDinamica()
         for simbolo_j in simbolos:
-            fila.append(
+            retornos_i = retornos_por_simbolo.obtener(simbolo_i, [])
+            retornos_j = retornos_por_simbolo.obtener(simbolo_j, [])
+            fila.agregar(
                 correlacion_pearson(
-                    retornos_por_simbolo[simbolo_i][-min_len:] if min_len else [],
-                    retornos_por_simbolo[simbolo_j][-min_len:] if min_len else [],
+                    ultimos_elementos(retornos_i, min_len) if min_len else [],
+                    ultimos_elementos(retornos_j, min_len) if min_len else [],
                 )
             )
-        matriz.append(fila)
-    return {"symbols": simbolos, "matrix": matriz}
+        matriz.agregar(fila.a_lista())
+    return {"symbols": simbolos, "matrix": matriz.a_lista()}
 
 
 ALGORITHM_DOCS = {

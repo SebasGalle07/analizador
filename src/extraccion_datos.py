@@ -7,6 +7,22 @@ from pathlib import Path
 
 import requests
 
+from src.estructuras_datos import (
+    ConjuntoManual,
+    ListaDinamica,
+    TablaHashSimple,
+    asegurar_lista_en_diccionario,
+    claves_diccionario,
+    concatenar_iterables,
+    mayor_de_dos,
+    mayor_de_tres,
+    menor_de_dos,
+    menor_de_tres,
+    menor_de_varios,
+    obtener_valor,
+    ordenar_por_seleccion,
+    pares_diccionario,
+)
 from src.paths import PROCESSED_DIR, get_runtime_processed_dir
 
 
@@ -51,7 +67,7 @@ GLOBAL_SYMBOLS = [
     "DIA",
 ]
 
-DEFAULT_SYMBOLS = COLOMBIA_SYMBOLS + GLOBAL_SYMBOLS
+DEFAULT_SYMBOLS = concatenar_iterables(COLOMBIA_SYMBOLS, GLOBAL_SYMBOLS)
 
 SYMBOL_NAMES = {
     "ECOPETROL.CL": "Ecopetrol S.A.",
@@ -98,7 +114,7 @@ def nombre_columna(simbolo, campo):
 
 def nombre_activo(simbolo):
     simbolo = normalizar_simbolo(simbolo)
-    return SYMBOL_NAMES.get(simbolo, simbolo)
+    return obtener_valor(SYMBOL_NAMES, simbolo, simbolo)
 
 
 def _safe_float(value):
@@ -118,7 +134,7 @@ def _safe_volume(value):
         if value is None:
             return 0
         number = int(float(value))
-        return max(number, 0)
+        return mayor_de_dos(number, 0)
     except (TypeError, ValueError):
         return 0
 
@@ -171,29 +187,33 @@ def descargar_yahoo_finance(simbolo, years=5, interval="1d", timeout=15, max_rei
         raise RuntimeError(f"HTTP {respuesta.status_code} al descargar {simbolo}")
 
     payload = respuesta.json()
-    chart = payload.get("chart", {})
-    resultados = chart.get("result") or []
+    chart = obtener_valor(payload, "chart", {})
+    resultados = obtener_valor(chart, "result") or []
     if not resultados:
-        raise RuntimeError(f"Yahoo no retorno datos para {simbolo}: {chart.get('error')}")
+        raise RuntimeError(f"Yahoo no retorno datos para {simbolo}: {obtener_valor(chart, 'error')}")
 
     resultado = resultados[0]
-    tiempos = resultado.get("timestamp") or []
-    quote = (resultado.get("indicators", {}).get("quote") or [{}])[0]
-    aperturas = quote.get("open") or []
-    maximos = quote.get("high") or []
-    minimos = quote.get("low") or []
-    cierres = quote.get("close") or []
-    volumenes = quote.get("volume") or []
+    tiempos = obtener_valor(resultado, "timestamp") or []
+    indicadores = obtener_valor(resultado, "indicators", {})
+    quotes = obtener_valor(indicadores, "quote") or [{}]
+    quote = quotes[0]
+    aperturas = obtener_valor(quote, "open") or []
+    maximos = obtener_valor(quote, "high") or []
+    minimos = obtener_valor(quote, "low") or []
+    cierres = obtener_valor(quote, "close") or []
+    volumenes = obtener_valor(quote, "volume") or []
 
-    total = min(
-        len(tiempos),
-        len(aperturas),
-        len(maximos),
-        len(minimos),
-        len(cierres),
-        len(volumenes),
+    total = menor_de_varios(
+        [
+            len(tiempos),
+            len(aperturas),
+            len(maximos),
+            len(minimos),
+            len(cierres),
+            len(volumenes),
+        ]
     )
-    registros = []
+    registros = ListaDinamica(total if total > 0 else 1)
     for i in range(total):
         open_value = _safe_float(aperturas[i])
         high_value = _safe_float(maximos[i])
@@ -205,14 +225,14 @@ def descargar_yahoo_finance(simbolo, years=5, interval="1d", timeout=15, max_rei
         if open_value is None:
             open_value = close_value
         if high_value is None:
-            high_value = max(open_value, close_value)
+            high_value = mayor_de_dos(open_value, close_value)
         if low_value is None:
-            low_value = min(open_value, close_value)
+            low_value = menor_de_dos(open_value, close_value)
         if high_value < low_value:
             high_value, low_value = low_value, high_value
 
         fecha = datetime.fromtimestamp(tiempos[i]).strftime("%Y-%m-%d")
-        registros.append(
+        registros.agregar(
             {
                 "Fecha": fecha,
                 "Open": open_value,
@@ -223,7 +243,7 @@ def descargar_yahoo_finance(simbolo, years=5, interval="1d", timeout=15, max_rei
             }
         )
 
-    return registros
+    return registros.a_lista()
 
 
 def limpiar_registros(datos):
@@ -233,58 +253,73 @@ def limpiar_registros(datos):
     returns, volatility and similarity metrics. Duplicate dates keep the last
     observed record from the source.
     """
-    unicos = {}
+    unicos = TablaHashSimple()
     descartados = 0
     for registro in datos:
-        precios = [registro.get(campo) for campo in PRICE_FIELDS]
-        if any(_safe_float(valor) is None for valor in precios):
+        precios_validos = True
+        for campo in PRICE_FIELDS:
+            if _safe_float(obtener_valor(registro, campo)) is None:
+                precios_validos = False
+                break
+        if not precios_validos:
             descartados += 1
             continue
-        if registro["High"] < max(registro["Open"], registro["Close"], registro["Low"]):
+        if registro["High"] < mayor_de_tres(registro["Open"], registro["Close"], registro["Low"]):
             descartados += 1
             continue
-        if registro["Low"] > min(registro["Open"], registro["Close"], registro["High"]):
+        if registro["Low"] > menor_de_tres(registro["Open"], registro["Close"], registro["High"]):
             descartados += 1
             continue
-        unicos[registro["Fecha"]] = registro
+        unicos.poner(registro["Fecha"], registro)
 
-    limpios = sorted(unicos.values(), key=lambda item: item["Fecha"])
+    limpios = ordenar_por_seleccion(unicos.valores(), lambda item_a, item_b: item_a["Fecha"] < item_b["Fecha"])
     return limpios, {"crudos": len(datos), "limpios": len(limpios), "descartados": descartados}
 
 
 def unificar_portafolio(datos_por_activo):
     """Align all assets on the union calendar and forward-fill missing prices."""
-    fechas = set()
-    indices = {}
-    for simbolo, datos in datos_por_activo.items():
-        indice = {registro["Fecha"]: registro for registro in datos}
-        indices[simbolo] = indice
-        fechas.update(indice.keys())
+    fechas = ConjuntoManual()
+    indices = TablaHashSimple()
+    pares_activos = datos_por_activo.pares() if isinstance(datos_por_activo, TablaHashSimple) else pares_diccionario(datos_por_activo)
+    for simbolo, datos in pares_activos:
+        indice = TablaHashSimple(len(datos) * 2 if len(datos) > 0 else 16)
+        for registro in datos:
+            indice.poner(registro["Fecha"], registro)
+            fechas.agregar(registro["Fecha"])
+        indices.poner(simbolo, indice)
 
-    calendario = sorted(fechas)
-    ultimos = {simbolo: {campo: None for campo in PRICE_FIELDS} for simbolo in datos_por_activo}
-    dataset = []
-    missing_counts = {simbolo: 0 for simbolo in datos_por_activo}
+    calendario = ordenar_por_seleccion(fechas.a_lista(), lambda fecha_a, fecha_b: fecha_a < fecha_b)
+    ultimos = TablaHashSimple()
+    missing_counts = TablaHashSimple()
+    for simbolo, _ in pares_activos:
+        ultimos_campos = {}
+        for campo in PRICE_FIELDS:
+            ultimos_campos[campo] = None
+        ultimos.poner(simbolo, ultimos_campos)
+        missing_counts.poner(simbolo, 0)
+    dataset = ListaDinamica(len(calendario) if len(calendario) > 0 else 1)
 
     for fecha in calendario:
         fila = {"Fecha": fecha}
-        for simbolo in datos_por_activo:
-            registro = indices[simbolo].get(fecha)
+        for simbolo, _ in pares_activos:
+            indice = indices.obtener(simbolo)
+            registro = indice.obtener(fecha)
             missing = registro is None
+            ultimos_campos = ultimos.obtener(simbolo)
 
             if registro:
                 for campo in PRICE_FIELDS:
-                    ultimos[simbolo][campo] = registro[campo]
+                    ultimos_campos[campo] = registro[campo]
                     fila[nombre_columna(simbolo, campo)] = _round_or_blank(registro[campo])
                 fila[nombre_columna(simbolo, "Volume")] = registro["Volume"]
             else:
-                missing_counts[simbolo] += 1
+                missing_counts.poner(simbolo, missing_counts.obtener(simbolo, 0) + 1)
                 for campo in PRICE_FIELDS:
-                    fila[nombre_columna(simbolo, campo)] = _round_or_blank(ultimos[simbolo][campo])
+                    fila[nombre_columna(simbolo, campo)] = _round_or_blank(ultimos_campos[campo])
                 fila[nombre_columna(simbolo, "Volume")] = 0
 
             fila[nombre_columna(simbolo, "Missing")] = "1" if missing else "0"
-        dataset.append(fila)
+        dataset.agregar(fila)
 
     limpieza = {
         "metodo_faltantes": (
@@ -296,9 +331,9 @@ def unificar_portafolio(datos_por_activo):
             "pero reduce artificialmente retornos en dias imputados. Por eso las "
             "metricas de retornos ignoran pares sin precio previo real cuando aplica."
         ),
-        "faltantes_por_activo": missing_counts,
+        "faltantes_por_activo": missing_counts.a_diccionario(),
     }
-    return dataset, limpieza
+    return dataset.a_lista(), limpieza
 
 
 def guardar_reporte_json(reporte, nombre_base="dataset_maestro", directorio=None):
@@ -331,27 +366,39 @@ def guardar_en_json(dataset, nombre_archivo="dataset_maestro.json"):
 
 
 def validar_requerimientos_etl(reporte, dataset, min_activos=20, min_years=5, strict=False):
-    advertencias = []
-    errores = []
+    advertencias = ListaDinamica()
+    errores = ListaDinamica()
 
-    activos_descargados = len(reporte.get("simbolos_descargados", []))
+    activos_descargados = len(obtener_valor(reporte, "simbolos_descargados", []))
     if activos_descargados < min_activos:
         mensaje = (
             f"Solo se descargaron {activos_descargados} activos; "
             f"el requerimiento pide al menos {min_activos}."
         )
         if strict:
-            errores.append(mensaje)
+            errores.agregar(mensaje)
         else:
-            advertencias.append(mensaje)
+            advertencias.agregar(mensaje)
 
     fecha_min = None
     fecha_max = None
     if dataset:
-        fechas = [fila.get("Fecha") for fila in dataset if fila.get("Fecha")]
+        fechas_tmp = ListaDinamica()
+        for fila in dataset:
+            fecha = obtener_valor(fila, "Fecha")
+            if fecha:
+                fechas_tmp.agregar(fecha)
+        fechas = fechas_tmp.a_lista()
         if fechas:
-            fecha_min = min(fechas)
-            fecha_max = max(fechas)
+            fecha_min = fechas[0]
+            fecha_max = fechas[0]
+            i = 1
+            while i < len(fechas):
+                if fechas[i] < fecha_min:
+                    fecha_min = fechas[i]
+                if fechas[i] > fecha_max:
+                    fecha_max = fechas[i]
+                i += 1
             try:
                 inicio = datetime.strptime(fecha_min, "%Y-%m-%d")
                 fin = datetime.strptime(fecha_max, "%Y-%m-%d")
@@ -361,24 +408,38 @@ def validar_requerimientos_etl(reporte, dataset, min_activos=20, min_years=5, st
                         f"menos de {min_years} anos calendario completos."
                     )
                     if strict:
-                        errores.append(mensaje)
+                        errores.agregar(mensaje)
                     else:
-                        advertencias.append(mensaje)
+                        advertencias.agregar(mensaje)
             except ValueError:
-                advertencias.append("No se pudo validar el rango final de fechas.")
+                advertencias.agregar("No se pudo validar el rango final de fechas.")
 
+    advertencias_lista = advertencias.a_lista()
+    errores_lista = errores.a_lista()
     reporte["validacion"] = {
         "min_activos": min_activos,
         "min_years": min_years,
         "activos_descargados": activos_descargados,
         "rango_final": {"inicio": fecha_min, "fin": fecha_max},
-        "cumple": not errores,
+        "cumple": len(errores_lista) == 0,
     }
-    if advertencias:
-        reporte.setdefault("advertencias", []).extend(advertencias)
-    if errores:
-        reporte.setdefault("errores_validacion", []).extend(errores)
-    return advertencias, errores
+    if advertencias_lista:
+        lista_advertencias = asegurar_lista_en_diccionario(reporte, "advertencias")
+        nueva_lista = ListaDinamica(len(lista_advertencias) + len(advertencias_lista))
+        for mensaje_existente in lista_advertencias:
+            nueva_lista.agregar(mensaje_existente)
+        for mensaje in advertencias_lista:
+            nueva_lista.agregar(mensaje)
+        reporte["advertencias"] = nueva_lista.a_lista()
+    if errores_lista:
+        lista_errores = asegurar_lista_en_diccionario(reporte, "errores_validacion")
+        nueva_lista = ListaDinamica(len(lista_errores) + len(errores_lista))
+        for mensaje_existente in lista_errores:
+            nueva_lista.agregar(mensaje_existente)
+        for mensaje in errores_lista:
+            nueva_lista.agregar(mensaje)
+        reporte["errores_validacion"] = nueva_lista.a_lista()
+    return advertencias_lista, errores_lista
 
 
 def guardar_en_csv(dataset, nombre_archivo="dataset_maestro.csv"):
@@ -386,7 +447,7 @@ def guardar_en_csv(dataset, nombre_archivo="dataset_maestro.csv"):
         return None
     ruta = _resolver_ruta_salida(nombre_archivo, ".csv")
 
-    columnas = list(dataset[0].keys())
+    columnas = claves_diccionario(dataset[0])
     with ruta.open(mode="w", newline="", encoding="utf-8") as archivo:
         escritor = csv.DictWriter(archivo, fieldnames=columnas)
         escritor.writeheader()
@@ -413,8 +474,11 @@ def construir_dataset_maestro(
     min_years=5,
     strict_minimo=False,
 ):
-    simbolos = [normalizar_simbolo(s) for s in (simbolos or DEFAULT_SYMBOLS)]
-    datos_memoria = {}
+    simbolos_normalizados = ListaDinamica()
+    for s in (simbolos or DEFAULT_SYMBOLS):
+        simbolos_normalizados.agregar(normalizar_simbolo(s))
+    simbolos = simbolos_normalizados.a_lista()
+    datos_memoria = TablaHashSimple()
     reporte = {
         "fuente": "Yahoo Finance (HTTP directo)",
         "years_solicitados": years,
@@ -433,13 +497,14 @@ def construir_dataset_maestro(
     LOGGER.info("ETL | inicio | solicitados=%s | anos=%s | intervalo=%s", len(simbolos), years, interval)
 
     total_simbolos = len(simbolos)
-    for index, simbolo in enumerate(simbolos, start=1):
+    index = 1
+    for simbolo in simbolos:
         try:
             LOGGER.info("ETL | activo %s/%s | %s | descarga", index, total_simbolos, simbolo)
             datos = descargar_yahoo_finance(simbolo, years=years, interval=interval, timeout=timeout)
             limpios, resumen = limpiar_registros(datos)
             if limpios:
-                datos_memoria[simbolo] = limpios
+                datos_memoria.poner(simbolo, limpios)
                 reporte["activos"][simbolo] = resumen
                 LOGGER.info(
                     "ETL | activo %s/%s | %s | crudos=%s | limpios=%s | descartados=%s",
@@ -459,20 +524,35 @@ def construir_dataset_maestro(
 
         if pausa_segundos > 0:
             time.sleep(pausa_segundos)
+        index += 1
 
-    if not datos_memoria:
+    if datos_memoria.esta_vacia():
         LOGGER.error("ETL | error | no se obtuvieron activos validos")
         return [], reporte
 
     dataset, limpieza = unificar_portafolio(datos_memoria)
     reporte["limpieza"] = limpieza
-    reporte["simbolos_descargados"] = list(datos_memoria.keys())
+    reporte["simbolos_descargados"] = datos_memoria.claves()
     reporte["filas"] = len(dataset)
     reporte["activos_descargados"] = len(reporte["simbolos_descargados"])
     if dataset:
-        fechas = [fila["Fecha"] for fila in dataset if fila.get("Fecha")]
+        fechas_tmp = ListaDinamica()
+        for fila in dataset:
+            fecha = obtener_valor(fila, "Fecha")
+            if fecha:
+                fechas_tmp.agregar(fecha)
+        fechas = fechas_tmp.a_lista()
         if fechas:
-            reporte["rango_final"] = {"inicio": min(fechas), "fin": max(fechas)}
+            fecha_min = fechas[0]
+            fecha_max = fechas[0]
+            i = 1
+            while i < len(fechas):
+                if fechas[i] < fecha_min:
+                    fecha_min = fechas[i]
+                if fechas[i] > fecha_max:
+                    fecha_max = fechas[i]
+                i += 1
+            reporte["rango_final"] = {"inicio": fecha_min, "fin": fecha_max}
 
     advertencias, errores_validacion = validar_requerimientos_etl(
         reporte,
@@ -497,10 +577,10 @@ def construir_dataset_maestro(
 
     LOGGER.info(
         "ETL | fin | descargados=%s | filas=%s | rango=%s..%s",
-        reporte.get("activos_descargados", 0),
-        reporte.get("filas", 0),
-        (reporte.get("rango_final") or {}).get("inicio"),
-        (reporte.get("rango_final") or {}).get("fin"),
+        obtener_valor(reporte, "activos_descargados", 0),
+        obtener_valor(reporte, "filas", 0),
+        obtener_valor(obtener_valor(reporte, "rango_final") or {}, "inicio"),
+        obtener_valor(obtener_valor(reporte, "rango_final") or {}, "fin"),
     )
 
     return dataset, reporte
@@ -512,5 +592,6 @@ if __name__ == "__main__":
         format="%(message)s",
     )
     dataset, reporte = construir_dataset_maestro()
-    resumen = reporte.get("validacion", {})
-    LOGGER.info("ETL | resumen | filas=%s | activos=%s | rango=%s..%s", len(dataset), reporte.get("activos_descargados", 0), (resumen.get("rango_final") or {}).get("inicio"), (resumen.get("rango_final") or {}).get("fin"))
+    resumen = obtener_valor(reporte, "validacion", {})
+    rango = obtener_valor(resumen, "rango_final") or {}
+    LOGGER.info("ETL | resumen | filas=%s | activos=%s | rango=%s..%s", len(dataset), obtener_valor(reporte, "activos_descargados", 0), obtener_valor(rango, "inicio"), obtener_valor(rango, "fin"))

@@ -5,6 +5,14 @@ from pathlib import Path
 
 from flask import Flask, jsonify, redirect, request, send_file, send_from_directory
 
+from src.estructuras_datos import (
+    ListaDinamica,
+    eliminar_primera_clave,
+    obtener_valor,
+    sublista,
+    ultimos_elementos,
+    vaciar_diccionario,
+)
 from src.analisis_financiero import (
     ALGORITHM_DOCS,
     PATTERN_DOCS,
@@ -68,7 +76,7 @@ def _json_error(message, status_code=400):
 
 
 def _cache_get(cache, key):
-    return cache.get(key)
+    return obtener_valor(cache, key)
 
 
 def _cache_set(cache, key, value):
@@ -76,20 +84,20 @@ def _cache_set(cache, key, value):
         cache[key] = value
         return value
     if len(cache) >= MAX_CACHE_ENTRIES:
-        cache.pop(next(iter(cache)))
+        eliminar_primera_clave(cache)
     cache[key] = value
     return value
 
 
 def _trim_similarity_payload(comparacion):
     # Keep API responses light; full images are served by plotting endpoints.
-    comparacion["prices"]["dates"] = comparacion["prices"]["dates"][-250:]
+    comparacion["prices"]["dates"] = ultimos_elementos(comparacion["prices"]["dates"], 250)
     simbolo_a, simbolo_b = comparacion["symbols"]
-    comparacion["prices"][simbolo_a] = comparacion["prices"][simbolo_a][-250:]
-    comparacion["prices"][simbolo_b] = comparacion["prices"][simbolo_b][-250:]
-    comparacion["returns"]["dates"] = comparacion["returns"]["dates"][-250:]
-    comparacion["returns"][simbolo_a] = comparacion["returns"][simbolo_a][-250:]
-    comparacion["returns"][simbolo_b] = comparacion["returns"][simbolo_b][-250:]
+    comparacion["prices"][simbolo_a] = ultimos_elementos(comparacion["prices"][simbolo_a], 250)
+    comparacion["prices"][simbolo_b] = ultimos_elementos(comparacion["prices"][simbolo_b], 250)
+    comparacion["returns"]["dates"] = ultimos_elementos(comparacion["returns"]["dates"], 250)
+    comparacion["returns"][simbolo_a] = ultimos_elementos(comparacion["returns"][simbolo_a], 250)
+    comparacion["returns"][simbolo_b] = ultimos_elementos(comparacion["returns"][simbolo_b], 250)
     return comparacion
 
 
@@ -109,9 +117,16 @@ def _load_dataset_cached(path):
 
 
 def _expand_dataset_candidates(path):
-    if path.suffix.lower() in {".json", ".csv"}:
-        return [path]
-    return [path.with_suffix(".json"), path.with_suffix(".csv"), path]
+    suffix = path.suffix.lower()
+    if suffix == ".json" or suffix == ".csv":
+        candidatos = ListaDinamica(1)
+        candidatos.agregar(path)
+        return candidatos.a_lista()
+    candidatos = ListaDinamica(3)
+    candidatos.agregar(path.with_suffix(".json"))
+    candidatos.agregar(path.with_suffix(".csv"))
+    candidatos.agregar(path)
+    return candidatos.a_lista()
 
 
 def resolve_dataset_path(ruta_archivo=None):
@@ -119,13 +134,14 @@ def resolve_dataset_path(ruta_archivo=None):
         original_path = Path(ruta_archivo)
         is_relative = not original_path.is_absolute()
         path = original_path if not is_relative else PROJECT_ROOT / ruta_archivo
-        search_paths = list(_expand_dataset_candidates(path))
+        search_paths = ListaDinamica()
+        search_paths.extender(_expand_dataset_candidates(path))
         if is_relative:
             if len(original_path.parts) == 1:
-                search_paths.extend(_expand_dataset_candidates(RUNTIME_PROCESSED_DIR / original_path.name))
-            elif original_path.parts[:2] == ("data", "processed"):
-                search_paths.extend(_expand_dataset_candidates(RUNTIME_PROCESSED_DIR / original_path.name))
-        for candidate in search_paths:
+                search_paths.extender(_expand_dataset_candidates(RUNTIME_PROCESSED_DIR / original_path.name))
+            elif len(original_path.parts) >= 2 and original_path.parts[0] == "data" and original_path.parts[1] == "processed":
+                search_paths.extender(_expand_dataset_candidates(RUNTIME_PROCESSED_DIR / original_path.name))
+        for candidate in search_paths.a_lista():
             if candidate.exists():
                 return candidate
         return None
@@ -138,10 +154,10 @@ def resolve_dataset_path(ruta_archivo=None):
 
 
 def load_dataset_or_error():
-    ruta = request.args.get("ruta_archivo")
+    ruta = obtener_valor(request.args, "ruta_archivo")
     if request.is_json:
         payload = request.get_json(silent=True) or {}
-        ruta = payload.get("ruta_archivo", ruta)
+        ruta = obtener_valor(payload, "ruta_archivo", ruta)
 
     dataset_path = resolve_dataset_path(ruta)
     if not dataset_path:
@@ -157,11 +173,31 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
     stat = dataset_path.stat()
     version = f"{stat.st_mtime_ns}-{stat.st_size}"
     simbolos = extraer_simbolos(dataset)
-    fechas = [fila["Fecha"] for fila in dataset if fila.get("Fecha")]
+    fechas_tmp = ListaDinamica()
+    for fila in dataset:
+        fecha = obtener_valor(fila, "Fecha")
+        if fecha:
+            fechas_tmp.agregar(fecha)
+    fechas = fechas_tmp.a_lista()
+    fecha_min = None
+    fecha_max = None
+    if fechas:
+        fecha_min = fechas[0]
+        fecha_max = fechas[0]
+        i = 1
+        while i < len(fechas):
+            if fechas[i] < fecha_min:
+                fecha_min = fechas[i]
+            if fechas[i] > fecha_max:
+                fecha_max = fechas[i]
+            i += 1
     symbol_groups = [
         {"label": "Activos colombianos", "symbols": COLOMBIA_SYMBOLS},
         {"label": "Activos globales", "symbols": GLOBAL_SYMBOLS},
     ]
+    symbol_names = {}
+    for simbolo in simbolos:
+        symbol_names[simbolo] = obtener_valor(SYMBOL_NAMES, simbolo, simbolo)
     payload = {
         "source_file": dataset_path.name,
         "source_path": str(dataset_path),
@@ -171,10 +207,10 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
         "symbols": simbolos,
         "symbol_count": len(simbolos),
         "symbol_groups": symbol_groups,
-        "symbol_names": {simbolo: SYMBOL_NAMES.get(simbolo, simbolo) for simbolo in simbolos},
-        "date_min": min(fechas) if fechas else None,
-        "date_max": max(fechas) if fechas else None,
-        "preview": dataset[:preview_rows],
+        "symbol_names": symbol_names,
+        "date_min": fecha_min,
+        "date_max": fecha_max,
+        "preview": sublista(dataset, 0, preview_rows),
     }
     # Incluir reporte ETL si fue guardado junto al CSV
     report_path = dataset_path.parent / (dataset_path.stem + "_report.json")
@@ -184,12 +220,12 @@ def dataset_overview_payload(dataset, dataset_path, preview_rows=5):
                 etl_report = json.load(f)
                 payload["etl_report"] = etl_report
                 payload["etl_summary"] = {
-                    "source": etl_report.get("fuente"),
-                    "years_requested": etl_report.get("years_solicitados"),
-                    "assets_requested": etl_report.get("activos_solicitados"),
-                    "assets_downloaded": etl_report.get("activos_descargados"),
-                    "final_range": etl_report.get("rango_final"),
-                    "warnings": etl_report.get("advertencias", []),
+                    "source": obtener_valor(etl_report, "fuente"),
+                    "years_requested": obtener_valor(etl_report, "years_solicitados"),
+                    "assets_requested": obtener_valor(etl_report, "activos_solicitados"),
+                    "assets_downloaded": obtener_valor(etl_report, "activos_descargados"),
+                    "final_range": obtener_valor(etl_report, "rango_final"),
+                    "warnings": obtener_valor(etl_report, "advertencias", []),
                 }
         except Exception:
             pass
@@ -259,6 +295,13 @@ def _json_response_cache(key, builder):
     return jsonify(data)
 
 
+def _valores_serie(dataset, simbolo, campo):
+    valores = ListaDinamica()
+    for item in serie_campo(dataset, simbolo, campo):
+        valores.agregar(item["valor"])
+    return valores.a_lista()
+
+
 def _png_response_cache(key, builder, download_name):
     cached = _cache_get(PNG_CACHE, key)
     if cached is None:
@@ -276,12 +319,12 @@ def _png_response_cache(key, builder, download_name):
 @app.post("/dataset/build")
 def build_dataset():
     payload = request.get_json(silent=True) or {}
-    simbolos = payload.get("simbolos") or DEFAULT_SYMBOLS
-    years = int(payload.get("years", 5))
-    interval = payload.get("interval", "1d")
-    timeout = int(payload.get("timeout", 15))
-    pausa = float(payload.get("pausa_segundos", 0.35))
-    nombre = payload.get("nombre_archivo")
+    simbolos = obtener_valor(payload, "simbolos") or DEFAULT_SYMBOLS
+    years = int(obtener_valor(payload, "years", 5))
+    interval = obtener_valor(payload, "interval", "1d")
+    timeout = int(obtener_valor(payload, "timeout", 15))
+    pausa = float(obtener_valor(payload, "pausa_segundos", 0.35))
+    nombre = obtener_valor(payload, "nombre_archivo")
     if not nombre:
         nombre = str(RUNTIME_PROCESSED_DIR / "dataset_maestro.json")
     else:
@@ -291,7 +334,7 @@ def build_dataset():
         if not nombre_path.is_absolute():
             if len(nombre_path.parts) == 1:
                 nombre = str(RUNTIME_PROCESSED_DIR / nombre_path)
-            elif nombre_path.parts[:2] == ("data", "processed"):
+            elif len(nombre_path.parts) >= 2 and nombre_path.parts[0] == "data" and nombre_path.parts[1] == "processed":
                 nombre = str(RUNTIME_PROCESSED_DIR / nombre_path.name)
             else:
                 nombre = str(PROJECT_ROOT / nombre_path)
@@ -316,19 +359,20 @@ def build_dataset():
         app.logger.error("API | ETL fallido | no se construyo dataset")
         return _json_error("No se pudo construir el dataset.", 502)
 
-    DATASET_CACHE.clear()
-    JSON_CACHE.clear()
-    PNG_CACHE.clear()
+    vaciar_diccionario(DATASET_CACHE)
+    vaciar_diccionario(JSON_CACHE)
+    vaciar_diccionario(PNG_CACHE)
 
-    resumen = reporte.get("validacion", {})
+    resumen = obtener_valor(reporte, "validacion", {})
+    rango_final = obtener_valor(resumen, "rango_final") or {}
     app.logger.info(
         "API | ETL completado | activos=%s | filas=%s | rango=%s..%s",
-        reporte.get("activos_descargados", 0),
+        obtener_valor(reporte, "activos_descargados", 0),
         len(dataset),
-        (resumen.get("rango_final") or {}).get("inicio"),
-        (resumen.get("rango_final") or {}).get("fin"),
+        obtener_valor(rango_final, "inicio"),
+        obtener_valor(rango_final, "fin"),
     )
-    return jsonify({"rows": len(dataset), "report": reporte, "preview": dataset[:3]})
+    return jsonify({"rows": len(dataset), "report": reporte, "preview": sublista(dataset, 0, 3)})
 
 
 @app.post("/similarity")
@@ -337,10 +381,10 @@ def similarity():
     if error:
         return error
     payload = request.get_json(silent=True) or {}
-    simbolo_a = payload.get("symbol_a")
-    simbolo_b = payload.get("symbol_b")
+    simbolo_a = obtener_valor(payload, "symbol_a")
+    simbolo_b = obtener_valor(payload, "symbol_b")
     try:
-        dtw_banda = int(payload.get("dtw_banda", 100))
+        dtw_banda = int(obtener_valor(payload, "dtw_banda", 100))
     except (TypeError, ValueError):
         return _json_error("La banda DTW debe ser un numero entero valido.")
     if dtw_banda < 1:
@@ -372,10 +416,10 @@ def patterns():
     dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    simbolo = request.args.get("symbol")
+    simbolo = obtener_valor(request.args, "symbol")
     try:
-        k = int(request.args.get("k", 3))
-        threshold = float(request.args.get("threshold", 0.03))
+        k = int(obtener_valor(request.args, "k", 3))
+        threshold = float(obtener_valor(request.args, "threshold", 0.03))
     except (TypeError, ValueError):
         return _json_error("Los parametros k y threshold deben ser numericos validos.")
     if k < 2:
@@ -392,7 +436,7 @@ def patterns():
         lambda: {
             "symbol": simbolo,
             "patterns": contar_patrones(
-                retornos_desde_precios([item["valor"] for item in serie_campo(dataset, simbolo, "Close")]),
+                retornos_desde_precios(_valores_serie(dataset, simbolo, "Close")),
                 k=k,
                 umbral_rebote=threshold,
             ),
@@ -423,9 +467,9 @@ def plot_candlestick():
     dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    simbolo = request.args.get("symbol")
-    short_window = int(request.args.get("short_window", 20))
-    long_window = int(request.args.get("long_window", 50))
+    simbolo = obtener_valor(request.args, "symbol")
+    short_window = int(obtener_valor(request.args, "short_window", 20))
+    long_window = int(obtener_valor(request.args, "long_window", 50))
     if simbolo not in extraer_simbolos(dataset):
         return _json_error("Simbolo invalido.")
     try:
@@ -444,8 +488,8 @@ def plot_returns():
     dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    simbolo_a = request.args.get("symbol_a")
-    simbolo_b = request.args.get("symbol_b")
+    simbolo_a = obtener_valor(request.args, "symbol_a")
+    simbolo_b = obtener_valor(request.args, "symbol_b")
     simbolos = extraer_simbolos(dataset)
     if simbolo_a not in simbolos or simbolo_b not in simbolos:
         return _json_error("Simbolos invalidos.")
@@ -462,8 +506,8 @@ def plot_series():
     dataset, dataset_path, error = load_dataset_or_error()
     if error:
         return error
-    simbolo_a = request.args.get("symbol_a")
-    simbolo_b = request.args.get("symbol_b")
+    simbolo_a = obtener_valor(request.args, "symbol_a")
+    simbolo_b = obtener_valor(request.args, "symbol_b")
     if simbolo_a not in extraer_simbolos(dataset) or simbolo_b not in extraer_simbolos(dataset):
         return _json_error("Simbolos invalidos.")
     cache_key = ("plot_series", _dataset_fingerprint(dataset_path), simbolo_a, simbolo_b)
@@ -493,8 +537,8 @@ def report_pdf():
     if error:
         return error
     simbolos = extraer_simbolos(dataset)
-    symbol_a = request.args.get("symbol_a") or (simbolos[0] if simbolos else None)
-    symbol_b = request.args.get("symbol_b") or (simbolos[1] if len(simbolos) > 1 else symbol_a)
+    symbol_a = obtener_valor(request.args, "symbol_a") or (simbolos[0] if simbolos else None)
+    symbol_b = obtener_valor(request.args, "symbol_b") or (simbolos[1] if len(simbolos) > 1 else symbol_a)
     if symbol_a not in simbolos or symbol_b not in simbolos:
         return _json_error("Simbolos invalidos para reporte.")
     ruta = generar_reporte_pdf(dataset, symbol_a, symbol_b)

@@ -1,18 +1,32 @@
 import csv
 import time
 
+from src.estructuras_datos import (
+    ListaDinamica,
+    Pila,
+    copiar_lista,
+    crear_lista_de_listas,
+    crear_lista_rellena,
+    extraer_en_indice,
+    insertar_en_indice,
+    menor_de_dos,
+    obtener_valor,
+    pares_diccionario,
+    sublista,
+)
+
 
 def cargar_dataset(ruta_archivo):
-    dataset = []
+    dataset = ListaDinamica()
     try:
         with open(ruta_archivo, mode="r", encoding="utf-8") as archivo:
             lector = csv.DictReader(archivo)
             for fila in lector:
-                dataset.append(fila)
-        print(f"[OK] Dataset cargado. Total de filas: {len(dataset)}")
+                dataset.agregar(fila)
+        print(f"[OK] Dataset cargado. Total de filas: {dataset.tamano()}")
     except Exception as error:
         print(f"[ERROR] No se pudo leer el archivo: {error}")
-    return dataset
+    return dataset.a_lista()
 
 
 def cronometrar(func):
@@ -28,14 +42,14 @@ def cronometrar(func):
 
 def obtener_cierre(registro, simbolo="VOO"):
     try:
-        return float(registro.get(f"{simbolo}_Close", 0.0) or 0.0)
+        return float(obtener_valor(registro, f"{simbolo}_Close", 0.0) or 0.0)
     except (TypeError, ValueError):
         return 0.0
 
 
 def obtener_volumen(registro, simbolo="VOO"):
     try:
-        return float(registro.get(f"{simbolo}_Volume", 0.0) or 0.0)
+        return float(obtener_valor(registro, f"{simbolo}_Volume", 0.0) or 0.0)
     except (TypeError, ValueError):
         return 0.0
 
@@ -58,7 +72,7 @@ def es_estrictamente_menor(registro_a, registro_b, simbolo="VOO"):
 
 @cronometrar
 def selection_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     n = len(arr)
     for i in range(n - 1):
         min_idx = i
@@ -72,7 +86,7 @@ def selection_sort(dataset_original, simbolo="VOO"):
 
 @cronometrar
 def comb_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     n = len(arr)
     gap = n
     shrink = 1.3
@@ -91,7 +105,7 @@ def comb_sort(dataset_original, simbolo="VOO"):
 
 @cronometrar
 def gnome_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     n = len(arr)
     pos = 0
     while pos < n:
@@ -107,7 +121,7 @@ def gnome_sort(dataset_original, simbolo="VOO"):
 
 @cronometrar
 def binary_insertion_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     n = len(arr)
     for i in range(1, n):
         elemento_actual = arr[i]
@@ -123,8 +137,11 @@ def binary_insertion_sort(dataset_original, simbolo="VOO"):
                 derecho = medio - 1
             else:
                 izquierdo = medio + 1
-        arr.pop(i)
-        arr.insert(izquierdo, elemento_actual)
+        j = i
+        while j > izquierdo:
+            arr[j] = arr[j - 1]
+            j -= 1
+        arr[izquierdo] = elemento_actual
     return arr
 
 
@@ -150,8 +167,8 @@ def insertion_for_tim(arr, left, right, simbolo="VOO"):
 
 
 def merge_for_tim(arr, l, m, r, simbolo="VOO"):
-    left = arr[l : m + 1]
-    right = arr[m + 1 : r + 1]
+    left = sublista(arr, l, m + 1)
+    right = sublista(arr, m + 1, r + 1)
     i = 0
     j = 0
     k = l
@@ -175,20 +192,20 @@ def merge_for_tim(arr, l, m, r, simbolo="VOO"):
 
 @cronometrar
 def tim_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     if not arr:
         return arr
 
     n = len(arr)
     min_run = calcular_min_run(n)
     for start in range(0, n, min_run):
-        end = min(start + min_run - 1, n - 1)
+        end = menor_de_dos(start + min_run - 1, n - 1)
         insertion_for_tim(arr, start, end, simbolo=simbolo)
     size = min_run
     while size < n:
         for left in range(0, n, 2 * size):
-            mid = min(left + size - 1, n - 1)
-            right = min(left + 2 * size - 1, n - 1)
+            mid = menor_de_dos(left + size - 1, n - 1)
+            right = menor_de_dos(left + 2 * size - 1, n - 1)
             if mid < right:
                 merge_for_tim(arr, left, mid, right, simbolo=simbolo)
         size *= 2
@@ -208,12 +225,12 @@ def particion(arr, low, high, simbolo="VOO"):
 
 @cronometrar
 def quick_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     if not arr:
         return arr
 
     n = len(arr)
-    pila = [0] * (n * 2)
+    pila = crear_lista_rellena(0, n * 2)
     top = -1
 
     top += 1
@@ -259,7 +276,7 @@ def heapify(arr, n, i, simbolo="VOO"):
 
 @cronometrar
 def heap_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     n = len(arr)
     for i in range(n // 2 - 1, -1, -1):
         heapify(arr, n, i, simbolo=simbolo)
@@ -271,7 +288,7 @@ def heap_sort(dataset_original, simbolo="VOO"):
 
 @cronometrar
 def bucket_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     n = len(arr)
     if n == 0:
         return arr
@@ -286,16 +303,16 @@ def bucket_sort(dataset_original, simbolo="VOO"):
             max_val = val
 
     rango = (max_val - min_val + 1) / num_cubetas
-    cubetas = [[] for _ in range(num_cubetas)]
+    cubetas = crear_lista_de_listas(num_cubetas)
 
     for item in arr:
         val = fecha_a_entero(item)
         idx = int((val - min_val) / rango)
         if idx == num_cubetas:
             idx -= 1
-        cubetas[idx].append(item)
+        cubetas[idx].agregar(item)
 
-    resultado = []
+    resultado = ListaDinamica(n)
     for cubeta in cubetas:
         for i in range(1, len(cubeta)):
             temp = cubeta[i]
@@ -304,14 +321,14 @@ def bucket_sort(dataset_original, simbolo="VOO"):
                 cubeta[j + 1] = cubeta[j]
                 j -= 1
             cubeta[j + 1] = temp
-        resultado.extend(cubeta)
-    return resultado
+        resultado.extender(cubeta)
+    return resultado.a_lista()
 
 
 def radix_counting_sort(arr, exp):
     n = len(arr)
-    output = [None] * n
-    count = [0] * 10
+    output = crear_lista_rellena(None, n)
+    count = crear_lista_rellena(0, 10)
 
     for i in range(n):
         idx = (fecha_a_entero(arr[i]) // exp) % 10
@@ -329,7 +346,7 @@ def radix_counting_sort(arr, exp):
 
 @cronometrar
 def radix_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     if not arr:
         return arr
 
@@ -359,7 +376,8 @@ def radix_sort(dataset_original, simbolo="VOO"):
 
 @cronometrar
 def pigeonhole_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
+    n = len(arr)
     if not arr:
         return arr
 
@@ -372,11 +390,11 @@ def pigeonhole_sort(dataset_original, simbolo="VOO"):
             max_val = val
 
     rango = max_val - min_val + 1
-    holes = [[] for _ in range(rango)]
+    holes = crear_lista_de_listas(rango)
     for item in arr:
-        holes[fecha_a_entero(item) - min_val].append(item)
+        holes[fecha_a_entero(item) - min_val].agregar(item)
 
-    arr.clear()
+    resultado = ListaDinamica(n)
     for hole in holes:
         if len(hole) > 1:
             for i in range(1, len(hole)):
@@ -386,8 +404,8 @@ def pigeonhole_sort(dataset_original, simbolo="VOO"):
                     hole[j + 1] = hole[j]
                     j -= 1
                 hole[j + 1] = temp
-        arr.extend(hole)
-    return arr
+        resultado.extender(hole)
+    return resultado.a_lista()
 
 
 class NodoBST:
@@ -399,7 +417,7 @@ class NodoBST:
 
 @cronometrar
 def tree_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     if not arr:
         return []
     raiz = NodoBST(arr[0])
@@ -419,18 +437,18 @@ def tree_sort(dataset_original, simbolo="VOO"):
                     break
                 actual = actual.der
 
-    resultado = []
-    pila = []
+    resultado = ListaDinamica()
+    pila = Pila()
     actual = raiz
-    while pila or actual:
+    while not pila.esta_vacia() or actual:
         if actual:
-            pila.append(actual)
+            pila.apilar(actual)
             actual = actual.izq
         else:
-            nodo = pila.pop()
-            resultado.append(nodo.registro)
+            nodo = pila.desapilar()
+            resultado.agregar(nodo.registro)
             actual = nodo.der
-    return resultado
+    return resultado.a_lista()
 
 
 def bitonic_merge(arr, low, cnt, direction, simbolo="VOO"):
@@ -463,7 +481,7 @@ def bitonic_sort_rec(arr, low, cnt, direction, simbolo="VOO"):
 
 @cronometrar
 def bitonic_sort(dataset_original, simbolo="VOO"):
-    arr = dataset_original.copy()
+    arr = copiar_lista(dataset_original)
     n = len(arr)
     if not arr:
         return arr
@@ -474,27 +492,29 @@ def bitonic_sort(dataset_original, simbolo="VOO"):
 
     pad = potencia - n
     if pad > 0:
-        arr.extend(
-            [
+        i = 0
+        while i < pad:
+            arr = insertar_en_indice(
+                arr,
+                len(arr),
                 {
                     "Fecha": "9999-12-31",
                     f"{simbolo}_Close": "999999.0",
-                }
-            ]
-            * pad
-        )
+                },
+            )
+            i += 1
 
     bitonic_sort_rec(arr, 0, len(arr), 1, simbolo=simbolo)
 
     if pad > 0:
-        return arr[:n]
+        return sublista(arr, 0, n)
     return arr
 
 
 def obtener_top_n_volumen_y_ordenar(dataset, simbolo="VOO", limite=15):
-    arr = dataset.copy()
-    top_n = []
-    limite_real = min(limite, len(arr))
+    arr = copiar_lista(dataset)
+    top_n = ListaDinamica()
+    limite_real = menor_de_dos(limite, len(arr))
 
     for _ in range(limite_real):
         max_idx = 0
@@ -503,9 +523,10 @@ def obtener_top_n_volumen_y_ordenar(dataset, simbolo="VOO", limite=15):
             vol_max = obtener_volumen(arr[max_idx], simbolo=simbolo)
             if vol_actual > vol_max:
                 max_idx = j
-        top_n.append(arr.pop(max_idx))
+        arr, extraido = extraer_en_indice(arr, max_idx)
+        top_n.agregar(extraido)
 
-    resultado_final, tiempo_ej = tim_sort(top_n, simbolo=simbolo)
+    resultado_final, tiempo_ej = tim_sort(top_n.a_lista(), simbolo=simbolo)
     return resultado_final, tiempo_ej
 
 
@@ -526,13 +547,19 @@ ALGORITMOS = {
 
 
 def ejecutar_benchmark(dataset, simbolo="VOO", algoritmos=None):
-    nombres = algoritmos or list(ALGORITMOS.keys())
-    resultados = []
+    if algoritmos:
+        nombres = algoritmos
+    else:
+        nombres_tmp = ListaDinamica()
+        for nombre, _ in pares_diccionario(ALGORITMOS):
+            nombres_tmp.agregar(nombre)
+        nombres = nombres_tmp.a_lista()
+    resultados = ListaDinamica()
 
     for nombre in nombres:
         funcion = ALGORITMOS[nombre]
         _, tiempo = funcion(dataset, simbolo=simbolo)
-        resultados.append(
+        resultados.agregar(
             {
                 "algoritmo": nombre,
                 "tiempo_ms": round(tiempo, 4),
@@ -541,7 +568,7 @@ def ejecutar_benchmark(dataset, simbolo="VOO", algoritmos=None):
             }
         )
 
-    return resultados
+    return resultados.a_lista()
 
 
 if __name__ == "__main__":
@@ -553,7 +580,7 @@ if __name__ == "__main__":
         print("\n--- INICIANDO CARRERA DE ALGORITMOS ---")
         print(f"Tamanio del dataset a ordenar: {len(mi_dataset)} registros\n")
 
-        for nombre, funcion in ALGORITMOS.items():
+        for nombre, funcion in pares_diccionario(ALGORITMOS):
             print(f"Ejecutando {nombre}...")
             _, tiempo = funcion(mi_dataset, simbolo=simbolo_analisis)
             print(f"[RESULTADO] {nombre} finalizo en {tiempo:.2f} ms.\n")
@@ -574,11 +601,13 @@ if __name__ == "__main__":
         print(f"[OK] Extraccion y ordenamiento completado en {t_ms:.2f} ms.\n")
         print("LOS 15 DIAS MAS BUSCADOS (Ordenados cronologicamente):")
 
-        for i, reg in enumerate(top_15_ordenado, start=1):
-            fecha = reg.get("Fecha", "N/A")
+        i = 1
+        for reg in top_15_ordenado:
+            fecha = obtener_valor(reg, "Fecha", "N/A")
             vol = obtener_volumen(reg, simbolo=simbolo_analisis)
             cierre = obtener_cierre(reg, simbolo=simbolo_analisis)
             print(
                 f"  {i:02d}. Fecha: {fecha} | Volume: {vol:,.0f} | "
                 f"Cierre: {cierre:.2f}"
             )
+            i += 1
