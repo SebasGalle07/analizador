@@ -396,7 +396,15 @@ def estadisticas_riesgo(dataset):
                 "observations": len(retornos),
             }
         )
-    resultados.sort(key=lambda item: item["annual_volatility"], reverse=True)
+    n = len(resultados)
+    for i in range(n - 1):
+        max_idx = i
+        for j in range(i + 1, n):
+            # Orden descendente por volatilidad
+            if resultados[j]["annual_volatility"] > resultados[max_idx]["annual_volatility"]:
+                max_idx = j
+        if max_idx != i:
+            resultados[i], resultados[max_idx] = resultados[max_idx], resultados[i]
     return resultados
 
 
